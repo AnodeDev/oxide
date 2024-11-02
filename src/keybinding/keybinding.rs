@@ -1,40 +1,78 @@
-use ratatui::crossterm::event::KeyCode;
-use ratatui::backend::Backend;
-
-use anyhow;
+use ratatui::crossterm::event::{self, Event, KeyEventKind, KeyCode};
 
 use std::collections::HashMap;
+use std::cell::RefMut;
 
-use crate::editor::Editor;
+use crate::buffer::Mode;
 
-#[derive(PartialEq, Eq, Hash)]
-pub enum Key {
-    Single(KeyCode),
-    Ctrl(KeyCode),
-    Alt(KeyCode),
-    Shift(KeyCode),
-    Leader((KeyCode, KeyCode)),
-    Chord(Vec<Key>),
+#[derive(Eq, Hash, PartialEq)]
+pub enum KeybindingContext {
+    Global,
+    Buffer,
+    Mode(Mode),
 }
 
-type Action = Box<dyn Fn()>; // TODO!
+pub type KeyCombination = Vec<KeyCode>;
 
-pub struct Keybindings {
-    bindings: HashMap<Key, Action>,
+pub struct Action<T> {
+    pub id: &'static str,
+    pub function: Box<dyn FnMut(RefMut<T>)>,
+    pub description: &'static str,
 }
 
-impl Keybindings {
+pub struct KeybindingRegistry<T> {
+    bindings: HashMap<(KeybindingContext, KeyCombination), Action<T>>,
+}
+
+impl<T> KeybindingRegistry<T> {
     pub fn new() -> Self {
-        Keybindings { bindings: HashMap::new() }
-    }
-
-    pub fn bind(&mut self, key: Key, action: Action) {
-        self.bindings.insert(key, action);
-    }
-
-    pub fn execute(&self, key: &Key) {
-        if let Some(action) = self.bindings.get(key) {
-            action();
+        KeybindingRegistry {
+            bindings: HashMap::new(),
         }
+    }
+
+    pub fn register_keybinding(
+        &mut self,
+        context: KeybindingContext,
+        keys: KeyCombination,
+        action: Action<T>,
+    ) {
+        self.bindings.insert((context, keys), action);
+    }
+
+    pub fn process_key_event(&mut self, context: KeybindingContext, keys: KeyCombination, target: RefMut<T>) {
+        if let Some(action) = self.bindings.get_mut(&(context, keys)) {
+            (action.function)(target);
+        }
+    }
+
+    pub async fn read_keys(&mut self) -> anyhow::Result<KeyCombination> {
+        let mut keys: KeyCombination = Vec::new();
+
+        loop {
+            match event::read()? {
+                Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
+                    KeyCode::Esc => {
+                        keys.clear();
+
+                        break;
+                    },
+                    _ => keys.push(key.code),
+                },
+                _ => {},
+            }
+
+            if !self.has_binding(&keys) {
+                keys.clear();
+
+                break;
+            }
+        }
+
+        Ok(keys)
+    }
+
+    fn has_binding(&self, keys: &KeyCombination) -> bool {
+        self.bindings.keys().any(|(_context, combination)| combination == keys)
     }
 }

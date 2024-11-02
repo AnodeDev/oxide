@@ -1,36 +1,27 @@
-use ratatui::backend::Backend;
+use ratatui::prelude::*;
 use ratatui::Terminal;
 
-use std::cell::RefCell;
+use anyhow;
+
+use std::cell::{Ref, RefMut, RefCell};
 use std::rc::Rc;
+use std::io::Stdout;
 
 use crate::buffer::Buffer;
 use crate::renderer::Renderer;
-use crate::keybinding::Keybindings;
 
-enum Mode {
-    Normal,
-    Insert,
-    Command,
-}
-
-pub struct Editor<B: Backend> {
+pub struct Editor {
     pub buffers: Vec<Rc<RefCell<Buffer>>>,
     pub active_buffer: usize,
-    pub mode: Mode,
-    pub renderer: Renderer<B>,
-    pub keybindings: Keybindings,
+    pub renderer: Renderer,
 }
 
-impl<B: Backend> Editor<B> {
-    pub fn new(terminal: Terminal<B>) -> Self {
-
+impl Editor {
+    pub fn new(terminal: Terminal<CrosstermBackend<Stdout>>) -> Self {
         Editor {
             buffers: vec![Buffer::scratch()],
             active_buffer: 0,
-            mode: Mode::Normal,
             renderer: Renderer::new(terminal),
-            keybindings: Keybindings::new(),
         }
     }
 
@@ -38,6 +29,17 @@ impl<B: Backend> Editor<B> {
         self.buffers.push(buffer);
     }
 
-    fn add_keybindings(&mut self) {
+    pub fn get_active_buffer(&self) -> Ref<Buffer> {
+        self.buffers[self.active_buffer].borrow()
+    }
+
+    pub fn get_active_buffer_mut(&self) -> RefMut<Buffer> {
+        self.buffers[self.active_buffer].borrow_mut()
+    }
+
+    pub fn render(&mut self) -> anyhow::Result<()> {
+        self.renderer.render(self.buffers[self.active_buffer].borrow())?;
+
+        Ok(())
     }
 }
