@@ -14,6 +14,7 @@ pub struct Editor {
     pub buffers: Vec<Rc<RefCell<Buffer>>>,
     pub active_buffer: usize,
     pub renderer: Renderer,
+    pub should_quit: bool
 }
 
 impl Editor {
@@ -22,6 +23,7 @@ impl Editor {
             buffers: vec![Buffer::scratch()],
             active_buffer: 0,
             renderer: Renderer::new(terminal),
+            should_quit: false,
         }
     }
 

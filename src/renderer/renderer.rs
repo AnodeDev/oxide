@@ -32,7 +32,7 @@ impl Renderer {
                 Constraint::Length(1),
             ]);
             let horizontal = Layout::horizontal([
-                Constraint::Length(4),
+                Constraint::Length(3),
                 Constraint::Length(1),
                 Constraint::Fill(1),
             ]);
@@ -41,13 +41,15 @@ impl Renderer {
             let [ numline, _, content ] = horizontal.areas(content_area);
 
             for (num, line) in buffer.content.iter().enumerate() {
-                if buffer.cursor.1 == num {
-                    lines.push(format_line(line, Some(buffer.cursor.0)));
+                if buffer.cursor.y == num {
+                    lines.push(format_line(line, Some(buffer.cursor.x)));
+
+                    nums.push(format_line(&format!("{:<3}", num + 1), None).style(Style::default().fg(Color::DarkGray)));
                 } else {
                     lines.push(format_line(line, None));
-                }
 
-                nums.push(format_line(&format!("{:>4}", num + 1), None).style(Style::default().fg(Color::DarkGray)));
+                    nums.push(format_line(&format!("{:>3}", num + 1), None).style(Style::default().fg(Color::DarkGray)));
+                }
             }
 
             frame.render_widget(
@@ -59,11 +61,12 @@ impl Renderer {
                 numline,
             );
             frame.render_widget(
-                Block::new().style(Style::default().bg(Color::Red)),
+                Paragraph::new(format!("{} {}", buffer.mode, buffer.title))
+                    .style(Style::default().bg(Color::DarkGray)),
                 modeline,
             );
             frame.render_widget(
-                Block::new().style(Style::default().bg(Color::Green)),
+                Paragraph::new(""),
                 commandline,
             );
         })?;
@@ -74,21 +77,16 @@ impl Renderer {
 
 fn format_line(line: &str, cursor_x: Option<usize>) -> Line<'static> {
     let mut spans: Vec<Span> = Vec::new();
+    let mut line_str = line;
 
-    if let Some(mut x_pos) = cursor_x {
-        if x_pos > line.len() - 1 {
-            x_pos = line.len() - 1;
-        }
+    if line.len() == 0 {
+        line_str = " ";
+    }
 
-        for (num, c) in line.chars().enumerate() {
-            if x_pos == num {
-                spans.push(Span::styled(c.to_string(), Style::default().fg(Color::Black).bg(Color::Yellow)));
-            } else {
-                spans.push(Span::from(c.to_string()));
-            }
-        }
-    } else {
-        for c in line.chars() {
+    for (num, c) in line_str.chars().enumerate() {
+        if cursor_x.is_some() && cursor_x == Some(num) {
+            spans.push(Span::styled(c.to_string(), Style::default().fg(Color::Black).bg(Color::Yellow)));
+        } else {
             spans.push(Span::from(c.to_string()));
         }
     }
