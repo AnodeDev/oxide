@@ -10,7 +10,7 @@ use std::any::Any;
 
 use oxide::editor::Editor;
 use oxide::keybinding::{Action, KeybindingContext, KeybindingRegistry, KeyCombination};
-use oxide::buffer::{Buffer, Manipulation, Mode};
+use oxide::buffer::{Buffer, Manipulation, Mode, ContentSource};
 use oxide::utils::logging::setup_logger;
 
 fn main() -> anyhow::Result<()> {
@@ -21,7 +21,7 @@ fn main() -> anyhow::Result<()> {
     let mut keybinds_registry = KeybindingRegistry::new();
     let tokio_runtime = tokio::runtime::Runtime::new()?;
 
-
+    // Test keybindings
     keybinds_registry.register_keybinding(
         vec![ KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE) ],
         Mode::Normal,
@@ -175,10 +175,24 @@ fn main() -> anyhow::Result<()> {
         }
     );
 
+    // Test file (change to the directory of your choice)
     let file_path = "/home/dexter/Personal/Programming/Rust/oxide/test.txt";
     let file_buffer = tokio_runtime.block_on(Buffer::from_file(file_path))?;
     editor.borrow_mut().add_buffer(file_buffer);
-    editor.borrow_mut().active_buffer = 1;
+
+    // A buffer that lists the currently open buffers
+    let mut buffer_names: Vec<String> = editor.borrow().buffers.iter().map(|buffer| buffer.borrow().title.to_string()).collect();
+    buffer_names.push("*Buffers*".to_string());
+    let buffers_buffer = Buffer::new(
+        "*Buffers*",
+        buffer_names,
+        ContentSource::None,
+        false,
+        false,
+    );
+
+    editor.borrow_mut().add_buffer(buffers_buffer);
+    editor.borrow_mut().active_buffer = 2;
 
     loop {
         editor.borrow_mut().render()?;

@@ -21,7 +21,7 @@ pub trait Manipulation {
     fn give_command(&mut self) -> String;
 }
 
-enum ContentSource {
+pub enum ContentSource {
     None,
     File(File),
 }
@@ -71,6 +71,19 @@ impl fmt::Display for Mode {
 }
 
 impl Buffer {
+    pub fn new(title: &'static str, content: Vec<String>, source: ContentSource, killable: bool, mutable: bool) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Buffer {
+            title,
+            content,
+            source,
+            cursor: Cursor::new(),
+            mode: Mode::Normal,
+            killable,
+            mutable,
+            commandline: String::new(),
+        }))
+    }
+
     pub fn scratch() -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Buffer {
             title: "*Scratch*",
