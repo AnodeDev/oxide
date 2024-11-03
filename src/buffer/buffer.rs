@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::fs::File;
+use std::fs::{OpenOptions, File};
 use std::io::BufReader;
 use std::io::prelude::*;
 use std::path::Path;
@@ -13,6 +13,12 @@ pub trait Manipulation {
     fn cursor_down(&mut self);
     fn cursor_half_down(&mut self);
     fn cursor_half_up(&mut self);
+    fn remove_char(&mut self);
+    fn add_char(&mut self, character: char);
+    fn new_line(&mut self);
+    fn remove_char_commandline(&mut self);
+    fn add_char_commandline(&mut self, character: char);
+    fn give_command(&mut self) -> String;
 }
 
 enum ContentSource {
@@ -20,7 +26,7 @@ enum ContentSource {
     File(File),
 }
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Eq, Hash, PartialEq, Clone, Copy)]
 pub enum Mode {
     Normal,
     Insert,
@@ -39,6 +45,9 @@ pub struct Buffer {
     source: ContentSource,
     pub cursor: Cursor,
     pub mode: Mode,
+    pub killable: bool,
+    pub mutable: bool,
+    pub commandline: String,
 }
 
 impl Cursor {
@@ -69,17 +78,24 @@ impl Buffer {
                 "This is the scratch buffer".to_string(),
                 "This buffer isn't connected to a file, so nothing in here is saved.".to_string(),
                 "It's meant to be used to play around, sketch, and try new plugins.".to_string(),
-                " ".to_string(),
+                String::new(),
             ],
             source: ContentSource::None,
             cursor: Cursor::new(),
             mode: Mode::Normal,
+            killable: false,
+            mutable: false,
+            commandline: String::new(),
         }))
     }
 
     pub async fn from_file(path_str: &'static str) -> anyhow::Result<Rc<RefCell<Self>>> {
         let path = Path::new(path_str);
-        let file = File::open(path)?;
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(path)?;
         let mut buf_reader = BufReader::new(&file);
         let mut content = String::new();
         let mut file_name = "[NO NAME]";
@@ -97,7 +113,28 @@ impl Buffer {
             source: ContentSource::File(file),
             cursor: Cursor::new(),
             mode: Mode::Normal,
+            killable: true,
+            mutable: true,
+            commandline: String::new(),
         })))
+    }
+
+    pub async fn save_buffer(&mut self) -> anyhow::Result<()> {
+        if !self.mutable {
+            return Ok(())
+        }
+
+        match &mut self.source {
+            ContentSource::File(file) => {
+                let content_str = self.content.join("\n");
+                let content_b = content_str.as_bytes();
+
+                file.write_all(content_b)?;
+            },
+            _ => {},
+        }
+
+        Ok(())
     }
 }
 
@@ -110,7 +147,8 @@ impl Manipulation for Buffer {
     }
 
     fn cursor_right(&mut self) {
-        if self.content[self.cursor.y].len() != 0 && self.cursor.x < self.content[self.cursor.y].len() - 1 {
+        // if self.content[self.cursor.y].len() != 0 && self.cursor.x < self.content[self.cursor.y].len() {
+        if self.cursor.x < self.content[self.cursor.y].len() {
             self.cursor.x += 1;
             self.cursor.desired_x = self.cursor.x;
         }
@@ -158,5 +196,52 @@ impl Manipulation for Buffer {
         let line_len = self.content[self.cursor.y].len();
 
         self.cursor.x = self.cursor.desired_x.min(line_len.saturating_sub(1));
+    }
+
+    fn remove_char(&mut self) {
+        if self.cursor.x > 0 {
+            self.content[self.cursor.y].remove(self.cursor.x - 1);
+
+            self.cursor.x -= 1;
+        } else if self.cursor.y > 0 {
+            let current_line = self.content.remove(self.cursor.y);
+
+            self.cursor.y -= 1;
+            self.cursor.x = self.content[self.cursor.y].len();
+            self.content[self.cursor.y].push_str(&current_line);
+        }
+    }
+
+    fn add_char(&mut self, character: char) {
+        self.content[self.cursor.y].insert(self.cursor.x, character);
+        self.cursor.x += 1;
+    }
+
+    fn new_line(&mut self) {
+        let remaining_text = self.content[self.cursor.y].split_off(self.cursor.x);
+        self.content.insert(self.cursor.y + 1, remaining_text);
+
+        self.cursor.y += 1;
+        self.cursor.x = 0;
+    }
+
+    fn remove_char_commandline(&mut self) {
+        if self.cursor.x > 0 {
+            self.commandline.remove(self.cursor.x - 1);
+
+            self.cursor.x -= 1;
+        }
+    }
+
+    fn add_char_commandline(&mut self, character: char) {
+        self.commandline.insert(self.cursor.x, character);
+        self.cursor.x += 1;
+    }
+
+    fn give_command(&mut self) -> String {
+        let command = self.commandline.clone();
+        self.commandline = String::new();
+
+        command
     }
 }

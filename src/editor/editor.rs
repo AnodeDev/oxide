@@ -7,7 +7,7 @@ use std::cell::{Ref, RefMut, RefCell};
 use std::rc::Rc;
 use std::io::Stdout;
 
-use crate::buffer::Buffer;
+use crate::buffer::{Buffer, Manipulation};
 use crate::renderer::Renderer;
 
 pub struct Editor {

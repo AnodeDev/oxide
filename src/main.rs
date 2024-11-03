@@ -2,13 +2,15 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use anyhow;
 
+use log::warn;
+
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::any::Any;
 
 use oxide::editor::Editor;
 use oxide::keybinding::{Action, KeybindingContext, KeybindingRegistry, KeyCombination};
-use oxide::buffer::{Buffer, Manipulation};
+use oxide::buffer::{Buffer, Manipulation, Mode};
 use oxide::utils::logging::setup_logger;
 
 fn main() -> anyhow::Result<()> {
@@ -22,6 +24,7 @@ fn main() -> anyhow::Result<()> {
 
     keybinds_registry.register_keybinding(
         vec![ KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE) ],
+        Mode::Normal,
         KeybindingContext::Buffer,
         Action {
             id: "cusor_left",
@@ -36,6 +39,7 @@ fn main() -> anyhow::Result<()> {
 
     keybinds_registry.register_keybinding(
         vec![ KeyEvent::new(KeyCode::Char('e'), KeyModifiers::NONE) ],
+        Mode::Normal,
         KeybindingContext::Buffer,
         Action {
             id: "cusor_down",
@@ -50,6 +54,7 @@ fn main() -> anyhow::Result<()> {
 
     keybinds_registry.register_keybinding(
         vec![ KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE) ],
+        Mode::Normal,
         KeybindingContext::Buffer,
         Action {
             id: "cusor_up",
@@ -64,6 +69,7 @@ fn main() -> anyhow::Result<()> {
 
     keybinds_registry.register_keybinding(
         vec![ KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE) ],
+        Mode::Normal,
         KeybindingContext::Buffer,
         Action {
             id: "cusor_right",
@@ -78,6 +84,7 @@ fn main() -> anyhow::Result<()> {
 
     keybinds_registry.register_keybinding(
         vec![ KeyEvent::new(KeyCode::Char('e'), KeyModifiers::SHIFT) ],
+        Mode::Normal,
         KeybindingContext::Buffer,
         Action {
             id: "half_down",
@@ -92,6 +99,7 @@ fn main() -> anyhow::Result<()> {
 
     keybinds_registry.register_keybinding(
         vec![ KeyEvent::new(KeyCode::Char('i'), KeyModifiers::SHIFT) ],
+        Mode::Normal,
         KeybindingContext::Buffer,
         Action {
             id: "half_up",
@@ -105,20 +113,69 @@ fn main() -> anyhow::Result<()> {
     );
 
     keybinds_registry.register_keybinding(
-        vec![ KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE), KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE) ],
-        KeybindingContext::Global,
+        vec![ KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE) ],
+        Mode::Normal,
+        KeybindingContext::Buffer,
         Action {
-            id: "quit",
+            id: "insert_mode",
             function: Rc::new(|target: &mut dyn Any| {
-                if let Some(editor) = target.downcast_mut::<Editor>() {
-                    editor.should_quit = true;
+                if let Some(buffer) = target.downcast_mut::<Buffer>() {
+                    buffer.mode = Mode::Insert;
                 }
             }),
-            description: "Quit Oxide",
+            description: "Switch to insert mode",
         }
     );
 
-    let file_path = "/home/dexter/.zshrc";
+    keybinds_registry.register_keybinding(
+        vec![ KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE) ],
+        Mode::Normal,
+        KeybindingContext::Buffer,
+        Action {
+            id: "command_mode",
+            function: Rc::new(|target: &mut dyn Any| {
+                if let Some(buffer) = target.downcast_mut::<Buffer>() {
+                    buffer.cursor.desired_x = buffer.cursor.x;
+                    buffer.cursor.x = 0;
+                    buffer.mode = Mode::Command;
+                }
+            }),
+            description: "Switch to command mode",
+        }
+    );
+
+    keybinds_registry.register_keybinding(
+        vec![ KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE) ],
+        Mode::Insert,
+        KeybindingContext::Buffer,
+        Action {
+            id: "normal_mode",
+            function: Rc::new(|target: &mut dyn Any| {
+                if let Some(buffer) = target.downcast_mut::<Buffer>() {
+                    buffer.mode = Mode::Normal;
+                }
+            }),
+            description: "Switch to normal mode",
+        }
+    );
+
+    keybinds_registry.register_keybinding(
+        vec![ KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE) ],
+        Mode::Command,
+        KeybindingContext::Buffer,
+        Action {
+            id: "normal_mode",
+            function: Rc::new(|target: &mut dyn Any| {
+                if let Some(buffer) = target.downcast_mut::<Buffer>() {
+                    buffer.commandline = String::new();
+                    buffer.mode = Mode::Normal;
+                }
+            }),
+            description: "Switch to normal mode",
+        }
+    );
+
+    let file_path = "/home/dexter/Personal/Programming/Rust/oxide/test.txt";
     let file_buffer = tokio_runtime.block_on(Buffer::from_file(file_path))?;
     editor.borrow_mut().add_buffer(file_buffer);
     editor.borrow_mut().active_buffer = 1;
@@ -126,8 +183,19 @@ fn main() -> anyhow::Result<()> {
     loop {
         editor.borrow_mut().render()?;
 
-        let keys: KeyCombination = tokio_runtime.block_on(keybinds_registry.read_keys())?;
-        keybinds_registry.process_key_event(keys, &mut editor.borrow_mut());
+        let mode = editor.borrow().get_active_buffer().mode;
+
+        let keys: KeyCombination = tokio_runtime.block_on(keybinds_registry.read_keys(mode))?;
+        match tokio_runtime.block_on(keybinds_registry.process_key_event(keys, mode, &mut editor.borrow_mut())) {
+            Ok(_) => {},
+            Err(e) => {
+                warn!("ERROR: {}", e);
+
+                eprintln!("ERROR: {}", e);
+                
+                break;
+            },
+        };
 
         if editor.borrow().should_quit {
             break;
