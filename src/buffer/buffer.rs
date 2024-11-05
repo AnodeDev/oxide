@@ -7,18 +7,11 @@ use std::path::Path;
 use std::fmt;
 
 pub trait Manipulation {
-    fn cursor_left(&mut self);
-    fn cursor_right(&mut self);
-    fn cursor_up(&mut self);
-    fn cursor_down(&mut self);
-    fn cursor_half_down(&mut self);
-    fn cursor_half_up(&mut self);
-    fn remove_char(&mut self);
+    fn move_cursor(&mut self, x: i32, y: i32);
     fn add_char(&mut self, character: char);
     fn new_line(&mut self);
-    fn remove_char_commandline(&mut self);
-    fn add_char_commandline(&mut self, character: char);
-    fn give_command(&mut self) -> String;
+    fn remove_char(&mut self);
+    fn get_command(&mut self) -> String;
 }
 
 pub enum ContentSource {
@@ -37,6 +30,7 @@ pub struct Cursor {
     pub x: usize,
     pub y: usize,
     pub desired_x: usize,
+    pub desired_y: usize,
 }
 
 pub struct Buffer {
@@ -56,6 +50,7 @@ impl Cursor {
             x: 0,
             y: 0,
             desired_x: 0,
+            desired_y: 0,
         }
     }
 }
@@ -152,81 +147,36 @@ impl Buffer {
 }
 
 impl Manipulation for Buffer {
-    fn cursor_left(&mut self) {
-        if self.cursor.x > 0 {
-            self.cursor.x -= 1;
-            self.cursor.desired_x = self.cursor.x;
-        }
-    }
+    fn move_cursor(&mut self, x: i32, y: i32) {
+        let new_y = (self.cursor.y as i32 + y).clamp(0, self.content.len() as i32 - 1) as usize;
+        self.cursor.y = new_y;
 
-    fn cursor_right(&mut self) {
-        // if self.content[self.cursor.y].len() != 0 && self.cursor.x < self.content[self.cursor.y].len() {
-        if self.cursor.x < self.content[self.cursor.y].len() {
-            self.cursor.x += 1;
-            self.cursor.desired_x = self.cursor.x;
-        }
-    }
+        if x != 0 {
+            let current_line_len = self.content[self.cursor.y].len();
+            let new_x = (self.cursor.x as i32 + x).clamp(0, current_line_len as i32) as usize;
 
-    fn cursor_up(&mut self) {
-        if self.cursor.y > 0 {
-            self.cursor.y -= 1;
-
-            let line_len = self.content[self.cursor.y].len();
-
-            self.cursor.x = self.cursor.desired_x.min(line_len.saturating_sub(1));
-        }
-    }
-
-    fn cursor_down(&mut self) {
-        if self.cursor.y < self.content.len() - 1 {
-            self.cursor.y += 1;
-
-            let line_len = self.content[self.cursor.y].len();
-
-            self.cursor.x = self.cursor.desired_x.min(line_len.saturating_sub(1));
-        }
-    }
-
-    fn cursor_half_down(&mut self) {
-        if self.cursor.y < (self.content.len() -1) / 2 {
-            self.cursor.y = (self.content.len() -1) / 2;
+            self.cursor.x = new_x;
+            self.cursor.desired_x = new_x;
         } else {
-            self.cursor.y = self.content.len() - 1;
+            let current_line_len = self.content[self.cursor.y].len();
+            self.cursor.x = self.cursor.desired_x.min(current_line_len);
         }
-
-        let line_len = self.content[self.cursor.y].len();
-
-        self.cursor.x = self.cursor.desired_x.min(line_len.saturating_sub(1));
-    }
-
-    fn cursor_half_up(&mut self) {
-        if self.cursor.y > (self.content.len() -1) / 2 {
-            self.cursor.y = (self.content.len() -1) / 2;
-        } else {
-            self.cursor.y = 0;
-        }
-
-        let line_len = self.content[self.cursor.y].len();
-
-        self.cursor.x = self.cursor.desired_x.min(line_len.saturating_sub(1));
-    }
-
-    fn remove_char(&mut self) {
-        if self.cursor.x > 0 {
-            self.content[self.cursor.y].remove(self.cursor.x - 1);
-
-            self.cursor.x -= 1;
-        } else if self.cursor.y > 0 {
-            let current_line = self.content.remove(self.cursor.y);
-
-            self.cursor.y -= 1;
-            self.cursor.x = self.content[self.cursor.y].len();
-            self.content[self.cursor.y].push_str(&current_line);
-        }
-    }
+     }
 
     fn add_char(&mut self, character: char) {
-        self.content[self.cursor.y].insert(self.cursor.x, character);
+        let content: &mut String = match self.mode {
+            Mode::Insert => {
+                &mut self.content[self.cursor.y]
+            },
+            Mode::Command => {
+                self.cursor.desired_y = self.cursor.y;
+                self.cursor.y = 0;
+                &mut self.commandline
+            },
+            Mode::Normal => todo!("Throw error: Should never be Normal mode"),
+        };
+
+        content.insert(self.cursor.x, character);
         self.cursor.x += 1;
     }
 
@@ -238,20 +188,31 @@ impl Manipulation for Buffer {
         self.cursor.x = 0;
     }
 
-    fn remove_char_commandline(&mut self) {
+    fn remove_char(&mut self) {
+        let content: &mut String = match self.mode {
+            Mode::Insert => {
+                &mut self.content[self.cursor.y]
+            },
+            Mode::Command => {
+                &mut self.commandline
+            },
+            Mode::Normal => todo!("Throw error: Should never be Normal mode"),
+        };
+
         if self.cursor.x > 0 {
-            self.commandline.remove(self.cursor.x - 1);
+            content.remove(self.cursor.x - 1);
 
             self.cursor.x -= 1;
+        } else if self.cursor.y > 0 && self.mode == Mode::Insert {
+            let current_line = self.content.remove(self.cursor.y);
+
+            self.cursor.y -= 1;
+            self.cursor.x = self.content[self.cursor.y].len();
+            self.content[self.cursor.y].push_str(&current_line);
         }
     }
 
-    fn add_char_commandline(&mut self, character: char) {
-        self.commandline.insert(self.cursor.x, character);
-        self.cursor.x += 1;
-    }
-
-    fn give_command(&mut self) -> String {
+    fn get_command(&mut self) -> String {
         let command = self.commandline.clone();
         self.commandline = String::new();
 
