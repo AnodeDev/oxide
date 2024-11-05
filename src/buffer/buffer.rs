@@ -6,11 +6,13 @@ use std::io::prelude::*;
 use std::path::Path;
 use std::fmt;
 
+use crate::keybinding::{DeleteDirection, NewLineDirection};
+
 pub trait Manipulation {
     fn move_cursor(&mut self, x: i32, y: i32);
     fn add_char(&mut self, character: char);
-    fn new_line(&mut self);
-    fn remove_char(&mut self);
+    fn new_line(&mut self, direction: NewLineDirection);
+    fn remove_char(&mut self, direction: DeleteDirection);
     fn get_command(&mut self) -> String;
 }
 
@@ -189,36 +191,64 @@ impl Manipulation for Buffer {
         self.cursor.x += 1;
     }
 
-    fn new_line(&mut self) {
-        let remaining_text = self.content[self.cursor.y].split_off(self.cursor.x);
-        self.content.insert(self.cursor.y + 1, remaining_text);
-
-        self.cursor.y += 1;
-        self.cursor.x = 0;
-    }
-
-    fn remove_char(&mut self) {
-        let content: &mut String = match self.mode {
+    fn new_line(&mut self, direction: NewLineDirection) {
+        match self.mode {
             Mode::Insert => {
+                let remaining_text = self.content[self.cursor.y].split_off(self.cursor.x);
+                self.content.insert(self.cursor.y + 1, remaining_text);
+                self.cursor.y += 1;
+                self.cursor.x = 0;
+            },
+            Mode::Normal => {
+                match direction {
+                    NewLineDirection::Under => {
+                        self.content.insert(self.cursor.y + 1, String::new());
+                        self.cursor.y += 1;
+                        self.cursor.x = 0;
+                    },
+                    NewLineDirection::Over => {
+                        self.content.insert(self.cursor.y, String::new());
+                        self.cursor.x = 0;
+                    },
+                }
+
+                self.mode = Mode::Insert;
+            },
+            _ => {},
+        }
+    }
+    fn remove_char(&mut self, direction: DeleteDirection) {
+        let content: &mut String = match self.mode {
+            Mode::Insert | Mode::Normal => {
                 &mut self.content[self.cursor.y]
             },
             Mode::Command => {
                 &mut self.commandline
             },
-            Mode::Normal => todo!("Throw ERROR: Should never be Normal mode"),
         };
 
-        if self.cursor.x > 0 {
-            content.remove(self.cursor.x - 1);
+        match direction {
+            DeleteDirection::Behind => {
+                if self.cursor.x > 0 {
+                    content.remove(self.cursor.x - 1);
 
-            self.cursor.x -= 1;
-        } else if self.cursor.y > 0 && self.mode == Mode::Insert {
-            let current_line = self.content.remove(self.cursor.y);
+                    self.cursor.x -= 1;
+                } else if self.cursor.y > 0 && self.mode == Mode::Insert {
+                    let current_line = self.content.remove(self.cursor.y);
 
-            self.cursor.y -= 1;
-            self.cursor.x = self.content[self.cursor.y].len();
-            self.content[self.cursor.y].push_str(&current_line);
+                    self.cursor.y -= 1;
+                    self.cursor.x = self.content[self.cursor.y].len();
+                    self.content[self.cursor.y].push_str(&current_line);
+                }
+            },
+            DeleteDirection::Under => {
+                if self.cursor.x < content.len() {
+                    content.remove(self.cursor.x);
+                }
+            },
+            _ => {},
         }
+
     }
 
     fn get_command(&mut self) -> String {

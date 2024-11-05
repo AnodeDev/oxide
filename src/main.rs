@@ -2,8 +2,6 @@ use ratatui::crossterm::event::{self, Event};
 
 use anyhow;
 
-use log::info;
-
 use std::cell::RefCell;
 
 use oxide::editor::Editor;
@@ -41,6 +39,7 @@ fn main() -> anyhow::Result<()> {
 
     loop {
         editor.borrow_mut().render()?;
+        keybinding_manager.borrow_mut().set_mode(editor.borrow().get_active_buffer().mode);
 
         if let Event::Key(key_event) = event::read()? {
             let input_result = keybinding_manager.borrow_mut().handle_input(key_event);
@@ -64,21 +63,17 @@ fn parse_action(action: Action, editor: &RefCell<Editor>, keybinding_manager: &R
     match action {
         Action::SwitchMode(mode) => {
             editor.borrow().get_active_buffer_mut().mode = mode;
-            keybinding_manager.borrow_mut().set_mode(mode);
         },
         Action::InsertChar(c) => {
-            info!("Mode: {} Char: {}", editor.borrow().get_active_buffer().mode, c);
-
             editor.borrow().get_active_buffer_mut().add_char(c);
         },
-        Action::NewLine => editor.borrow().get_active_buffer_mut().new_line(),
-        Action::DeleteChar => editor.borrow().get_active_buffer_mut().remove_char(),
+        Action::NewLine(direction) => editor.borrow().get_active_buffer_mut().new_line(direction),
+        Action::DeleteChar(direction) => editor.borrow().get_active_buffer_mut().remove_char(direction),
         Action::MoveCursor(x, y) => editor.borrow().get_active_buffer_mut().move_cursor(x, y),
         Action::Quit => editor.borrow_mut().is_running = false,
         Action::WriteBuffer => tokio_runtime.block_on(editor.borrow().get_active_buffer_mut().write_buffer())?,
         Action::ExecuteCommand => {
             editor.borrow_mut().get_active_buffer_mut().mode = Mode::Normal;
-            keybinding_manager.borrow_mut().set_mode(Mode::Normal);
 
             let input: String = editor.borrow().get_active_buffer_mut().get_command();
             let commands = CommandParser::parse(input);

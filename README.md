@@ -12,6 +12,8 @@ This made it really annoying to work in Neovim and Emacs, since I had to switch 
 
 ## The Solution
 
+I'll just make my own editor... It's that easy!
+
 I've started working on a keybinding design that hopefully makes this a lot less of a hassle, meaning you can easily configure the keybindings to fit any layout.
 
 Since I already knew I wanted to build this, I decided to add some extra functions as well. I really wanted to make the editor as fast as possible, and since I'm building it in Rust I wanted to try to implement `async`. 

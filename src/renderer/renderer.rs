@@ -2,7 +2,7 @@ use ratatui::prelude::*;
 use ratatui::layout::{Constraint, Layout};
 use ratatui::Terminal;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Block, Paragraph};
 use ratatui::style::{Color, Style};
 
 use anyhow;
@@ -37,9 +37,20 @@ impl Renderer {
                 Constraint::Length(1),
                 Constraint::Fill(1),
             ]);
+            let modeline_divide = Layout::horizontal([
+                Constraint::Fill(1),
+                Constraint::Fill(1),
+                Constraint::Fill(1),
+            ]);
+            let modeline_left_divide = Layout::horizontal([
+                Constraint::Length(9),
+                Constraint::Fill(1),
+            ]);
 
             let [ content_area, modeline, commandline ] = vertical.areas(frame.area());
             let [ numline, _, content ] = horizontal.areas(content_area);
+            let [ modeline_left, modeline_center, modeline_right ] = modeline_divide.areas(modeline);
+            let [ modeline_a, modeline_b ] = modeline_left_divide.areas(modeline_left);
 
             for (num, line) in buffer.content.iter().enumerate() {
                 if buffer.cursor.y == num && buffer.mode != Mode::Command {
@@ -63,9 +74,18 @@ impl Renderer {
                 numline,
             );
             frame.render_widget(
-                Paragraph::new(format!("{} {}", buffer.mode, buffer.title))
+                Block::new()
                     .style(Style::default().bg(Color::DarkGray)),
                 modeline,
+            );
+            frame.render_widget(
+                Paragraph::new(Line::from(buffer.mode.to_string()))
+                    .centered(),
+                modeline_a,
+            );
+            frame.render_widget(
+                Paragraph::new(Line::from(buffer.title.to_string())),
+                modeline_b,
             );
             frame.render_widget(
                 Paragraph::new(commandline_line),
