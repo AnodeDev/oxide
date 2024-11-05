@@ -127,7 +127,9 @@ impl Buffer {
         })))
     }
 
-    pub async fn save_buffer(&mut self) -> anyhow::Result<()> {
+    // CURRENTLY BUGGED: Doesn't overwrite existing content, just appends to the end of the first
+    // line
+    pub async fn write_buffer(&mut self) -> anyhow::Result<()> {
         if !self.mutable {
             return Ok(())
         }
@@ -171,9 +173,16 @@ impl Manipulation for Buffer {
             Mode::Command => {
                 self.cursor.desired_y = self.cursor.y;
                 self.cursor.y = 0;
+
+                if self.cursor.x > self.commandline.len() {
+                    self.cursor.desired_x = self.cursor.x;
+
+                    self.cursor.x = self.commandline.len()
+                }
+
                 &mut self.commandline
             },
-            Mode::Normal => todo!("Throw error: Should never be Normal mode"),
+            Mode::Normal => todo!("Throw ERROR: Should never be Normal mode"),
         };
 
         content.insert(self.cursor.x, character);
@@ -196,7 +205,7 @@ impl Manipulation for Buffer {
             Mode::Command => {
                 &mut self.commandline
             },
-            Mode::Normal => todo!("Throw error: Should never be Normal mode"),
+            Mode::Normal => todo!("Throw ERROR: Should never be Normal mode"),
         };
 
         if self.cursor.x > 0 {
@@ -214,7 +223,9 @@ impl Manipulation for Buffer {
 
     fn get_command(&mut self) -> String {
         let command = self.commandline.clone();
+
         self.commandline = String::new();
+        self.cursor.x = self.cursor.desired_x;
 
         command
     }

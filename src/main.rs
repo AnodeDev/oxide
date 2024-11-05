@@ -2,11 +2,13 @@ use ratatui::crossterm::event::{self, Event};
 
 use anyhow;
 
+use log::info;
+
 use std::cell::RefCell;
 
 use oxide::editor::Editor;
-use oxide::keybinding::{Action, KeybindingManager};
-use oxide::buffer::{Buffer, Manipulation, ContentSource};
+use oxide::keybinding::{Action, KeybindingManager, CommandParser};
+use oxide::buffer::{Buffer, Manipulation, ContentSource, Mode};
 use oxide::utils::logging::setup_logger;
 
 fn main() -> anyhow::Result<()> {
@@ -15,7 +17,7 @@ fn main() -> anyhow::Result<()> {
     let terminal = ratatui::init();
     let editor = RefCell::new(Editor::new(terminal));
     let tokio_runtime = tokio::runtime::Runtime::new()?;
-    let mut keybinding_manager = KeybindingManager::new();
+    let keybinding_manager = RefCell::new(KeybindingManager::new());
 
     // Test file (change to the directory of your choice)
     let file_path = "/home/dexter/Personal/Programming/Rust/oxide/test.txt";
@@ -34,35 +36,59 @@ fn main() -> anyhow::Result<()> {
     );
 
     editor.borrow_mut().add_buffer(buffers_buffer);
-    editor.borrow_mut().active_buffer = 2;
+    editor.borrow_mut().active_buffer = 1;
+
 
     loop {
         editor.borrow_mut().render()?;
 
         if let Event::Key(key_event) = event::read()? {
-            if let Some(action) = keybinding_manager.handle_input(key_event) {
-                match action {
-                    Action::SwitchMode(mode) => {
-                        editor.borrow().get_active_buffer_mut().mode = mode;
-                        keybinding_manager.set_mode(mode);
-                    },
-                    Action::InsertChar(c) => editor.borrow().get_active_buffer_mut().add_char(c),
-                    Action::NewLine => editor.borrow().get_active_buffer_mut().new_line(),
-                    Action::DeleteChar => editor.borrow().get_active_buffer_mut().remove_char(),
-                    Action::MoveCursor(x, y) => editor.borrow().get_active_buffer_mut().move_cursor(x, y),
-                    Action::ExecuteCommand => {
-                        let command = editor.borrow().get_active_buffer_mut().get_command();
-                    },
-                    _ => {},
-                }
+            let input_result = keybinding_manager.borrow_mut().handle_input(key_event);
+
+            if let Some(action) = input_result {
+                parse_action(action, &editor, &keybinding_manager, &tokio_runtime)?;
             }
         }
-        if editor.borrow().should_quit {
+        if !editor.borrow().is_running {
             break;
         }
     }
 
     ratatui::restore();
+
+    Ok(())
+}
+
+
+fn parse_action(action: Action, editor: &RefCell<Editor>, keybinding_manager: &RefCell<KeybindingManager>, tokio_runtime: &tokio::runtime::Runtime) -> anyhow::Result<()> {
+    match action {
+        Action::SwitchMode(mode) => {
+            editor.borrow().get_active_buffer_mut().mode = mode;
+            keybinding_manager.borrow_mut().set_mode(mode);
+        },
+        Action::InsertChar(c) => {
+            info!("Mode: {} Char: {}", editor.borrow().get_active_buffer().mode, c);
+
+            editor.borrow().get_active_buffer_mut().add_char(c);
+        },
+        Action::NewLine => editor.borrow().get_active_buffer_mut().new_line(),
+        Action::DeleteChar => editor.borrow().get_active_buffer_mut().remove_char(),
+        Action::MoveCursor(x, y) => editor.borrow().get_active_buffer_mut().move_cursor(x, y),
+        Action::Quit => editor.borrow_mut().is_running = false,
+        Action::WriteBuffer => tokio_runtime.block_on(editor.borrow().get_active_buffer_mut().write_buffer())?,
+        Action::ExecuteCommand => {
+            editor.borrow_mut().get_active_buffer_mut().mode = Mode::Normal;
+            keybinding_manager.borrow_mut().set_mode(Mode::Normal);
+
+            let input: String = editor.borrow().get_active_buffer_mut().get_command();
+            let commands = CommandParser::parse(input);
+
+            for command in commands {
+                parse_action(command, editor, keybinding_manager, tokio_runtime)?;
+            }
+        },
+        _ => {},
+    }
 
     Ok(())
 }

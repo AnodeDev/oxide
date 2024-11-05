@@ -6,13 +6,14 @@ use crate::buffer::Mode;
 
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub enum Action {
+    Nop,
     SwitchMode(Mode),
     InsertChar(char),
     NewLine,
     DeleteChar,
     MoveCursor(i32, i32),
     Quit,
-    SaveBuffer,
+    WriteBuffer,
     ExecuteCommand,
 }
 
@@ -26,6 +27,8 @@ pub struct KeybindingManager {
     mode_bindings: HashMap<Mode, HashMap<Keybinding, Action>>,
     current_mode: Mode,
 }
+
+pub struct CommandParser;
 
 impl KeybindingManager {
     pub fn new() -> Self {
@@ -115,17 +118,17 @@ impl KeybindingManager {
         };
 
         match self.current_mode {
-            Mode::Normal => self.handle_normal_mode(key_binding),
-            Mode::Insert => self.handle_insert_mode(key_binding),
+            Mode::Normal  => self.handle_normal_mode(key_binding),
+            Mode::Insert  => self.handle_insert_mode(key_binding),
             Mode::Command => self.handle_command_mode(key_binding),
         }
     }
 
     fn handle_insert_mode(&self, key_binding: Keybinding) -> Option<Action> {
         match key_binding.key {
-            KeyCode::Char(c) => Some(Action::InsertChar(c)),
+            KeyCode::Char(c)   => Some(Action::InsertChar(c)),
             KeyCode::Backspace => Some(Action::DeleteChar),
-            KeyCode::Enter => Some(Action::NewLine),
+            KeyCode::Enter     => Some(Action::NewLine),
             _ => self.mode_bindings.get(&Mode::Insert).and_then(|bindings| bindings.get(&key_binding).cloned()),
         }
     }
@@ -150,5 +153,22 @@ impl KeybindingManager {
 
     pub fn get_current_mode(&self) -> &Mode {
         &self.current_mode
+    }
+}
+
+impl CommandParser {
+    pub fn parse(input: String) -> Vec<Action> {
+        input.chars()
+            .map(|c| match c {
+                'n' => Action::MoveCursor(-1, 0),
+                'e' => Action::MoveCursor(0, 1),
+                'i' => Action::MoveCursor(0, -1),
+                'o' => Action::MoveCursor(1, 0),
+                'x' => Action::DeleteChar,
+                'w' => Action::WriteBuffer,
+                'q' => Action::Quit,
+                _   => Action::Nop,
+            })
+            .collect()
     }
 }
