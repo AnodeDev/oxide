@@ -69,6 +69,7 @@ fn parse_action(action: Action, editor: &RefCell<Editor>, keybinding_manager: &R
         },
         Action::NewLine(direction) => editor.borrow().get_active_buffer_mut().new_line(direction),
         Action::DeleteChar(direction) => editor.borrow().get_active_buffer_mut().remove_char(direction),
+        Action::DeleteLine => editor.borrow().get_active_buffer_mut().delete_line(),
         Action::MoveCursor(x, y) => editor.borrow().get_active_buffer_mut().move_cursor(x, y),
         Action::Quit => editor.borrow_mut().is_running = false,
         Action::WriteBuffer => tokio_runtime.block_on(editor.borrow().get_active_buffer_mut().write_buffer())?,

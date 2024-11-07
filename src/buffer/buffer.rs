@@ -13,6 +13,7 @@ pub trait Manipulation {
     fn add_char(&mut self, character: char);
     fn new_line(&mut self, direction: NewLineDirection);
     fn remove_char(&mut self, direction: DeleteDirection);
+    fn delete_line(&mut self);
     fn get_command(&mut self) -> String;
 }
 
@@ -249,6 +250,16 @@ impl Manipulation for Buffer {
             _ => {},
         }
 
+    }
+
+    fn delete_line(&mut self) {
+        if self.content.len() > 1 {
+            self.content.remove(self.cursor.y);
+
+            if self.cursor.y > self.content.len() - 1 {
+                self.cursor.y -= 1;
+            }
+        }
     }
 
     fn get_command(&mut self) -> String {

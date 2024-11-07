@@ -11,6 +11,7 @@ pub enum Action {
     InsertChar(char),
     NewLine(NewLineDirection),
     DeleteChar(DeleteDirection),
+    DeleteLine,
     MoveCursor(i32, i32),
     Quit,
     WriteBuffer,
@@ -31,14 +32,20 @@ pub enum NewLineDirection {
 }
 
 #[derive(PartialEq, Eq, Hash)]
+pub struct KeySequence {
+    pub keys: Vec<Keybinding>,
+}
+
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub struct Keybinding {
     pub key: KeyCode,
     pub modifiers: KeyModifiers,
 }
 
 pub struct KeybindingManager {
-    mode_bindings: HashMap<Mode, HashMap<Keybinding, Action>>,
+    mode_bindings: HashMap<Mode, HashMap<KeySequence, Action>>,
     current_mode: Mode,
+    current_sequence: KeySequence,
 }
 
 pub struct CommandParser;
@@ -48,6 +55,7 @@ impl KeybindingManager {
         let mut manager = KeybindingManager {
             mode_bindings: HashMap::new(),
             current_mode: Mode::Normal,
+            current_sequence: KeySequence { keys: Vec::new() },
         };
 
         manager.setup_default_bindings();
@@ -57,89 +65,90 @@ impl KeybindingManager {
     fn setup_default_bindings(&mut self) {
         self.add_binding(
             Mode::Normal,
-            KeyCode::Char('n'),
-            KeyModifiers::NONE,
+            vec![ (KeyCode::Char('n'), KeyModifiers::NONE) ],
             Action::MoveCursor(-1, 0));
 
         self.add_binding(
             Mode::Normal,
-            KeyCode::Char('e'),
-            KeyModifiers::NONE,
+            vec![ (KeyCode::Char('e'), KeyModifiers::NONE) ],
             Action::MoveCursor(0, 1));
 
         self.add_binding(
             Mode::Normal,
-            KeyCode::Char('i'),
-            KeyModifiers::NONE,
+            vec![ (KeyCode::Char('i'), KeyModifiers::NONE) ],
             Action::MoveCursor(0, -1));
 
         self.add_binding(
             Mode::Normal,
-            KeyCode::Char('o'),
-            KeyModifiers::NONE,
+            vec![ (KeyCode::Char('o'), KeyModifiers::NONE) ],
             Action::MoveCursor(1, 0));
 
         self.add_binding(
             Mode::Normal,
-            KeyCode::Char('s'),
-            KeyModifiers::NONE,
+            vec![ (KeyCode::Char('s'), KeyModifiers::NONE) ],
             Action::SwitchMode(Mode::Insert));
 
         self.add_binding(
             Mode::Normal,
-            KeyCode::Char('x'),
-            KeyModifiers::NONE,
+            vec![ (KeyCode::Char('x'), KeyModifiers::NONE) ],
             Action::DeleteChar(DeleteDirection::Under));
 
         self.add_binding(
             Mode::Normal,
-            KeyCode::Char('f'),
-            KeyModifiers::NONE,
+            vec![
+                (KeyCode::Char('d'), KeyModifiers::NONE),
+                (KeyCode::Char('d'), KeyModifiers::NONE)
+            ],
+            Action::DeleteLine);
+
+        self.add_binding(
+            Mode::Normal,
+            vec![ (KeyCode::Char('f'), KeyModifiers::NONE) ],
             Action::NewLine(NewLineDirection::Under));
 
         self.add_binding(
             Mode::Normal,
-            KeyCode::Char('F'),
-            KeyModifiers::SHIFT,
+            vec![ (KeyCode::Char('F'), KeyModifiers::SHIFT) ],
             Action::NewLine(NewLineDirection::Over));
 
         self.add_binding(
             Mode::Normal,
-            KeyCode::Char(':'),
-            KeyModifiers::NONE,
+            vec![ (KeyCode::Char(':'), KeyModifiers::NONE) ],
             Action::SwitchMode(Mode::Command));
 
         self.add_binding(
             Mode::Insert,
-            KeyCode::Esc,
-            KeyModifiers::NONE,
+            vec![ (KeyCode::Esc, KeyModifiers::NONE) ],
             Action::SwitchMode(Mode::Normal));
 
         self.add_binding(
             Mode::Insert,
-            KeyCode::Enter,
-            KeyModifiers::NONE,
+            vec![ (KeyCode::Enter, KeyModifiers::NONE) ],
             Action::NewLine(NewLineDirection::Under));
 
         self.add_binding(
             Mode::Command,
-            KeyCode::Esc,
-            KeyModifiers::NONE,
+            vec![ (KeyCode::Esc, KeyModifiers::NONE) ],
             Action::SwitchMode(Mode::Normal));
 
         self.add_binding(
             Mode::Command,
-            KeyCode::Enter,
-            KeyModifiers::NONE,
+            vec![ (KeyCode::Enter, KeyModifiers::NONE) ],
             Action::ExecuteCommand);
 
     }
 
-    pub fn add_binding(&mut self, mode: Mode, key: KeyCode, modifiers: KeyModifiers, action: Action) {
+    pub fn add_binding(&mut self, mode: Mode, key_sequence: Vec<(KeyCode, KeyModifiers)>, action: Action) {
+        let sequence = KeySequence {
+            keys: key_sequence.into_iter()
+                .map(|(key, modifiers)| Keybinding { key, modifiers })
+                .collect()
+        };
+
         self.mode_bindings
             .entry(mode)
             .or_insert_with(HashMap::new)
-            .insert(Keybinding { key, modifiers }, action);
+            .insert(sequence, action);
     }
 
     pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
@@ -148,17 +157,38 @@ impl KeybindingManager {
             modifiers: key_event.modifiers,
         };
 
-        match self.current_mode {
-            Mode::Normal  => self.handle_normal_mode(key_binding),
-            Mode::Insert  => self.handle_insert_mode(key_binding),
+        self.current_sequence.keys.push(key_binding);
+
+        let action = match self.current_mode {
+            Mode::Normal => self.handle_normal_mode(),
+            Mode::Insert => self.handle_insert_mode(key_binding),
             Mode::Command => self.handle_command_mode(key_binding),
+        };
+
+
+        if action.is_some() {
+            self.current_sequence.keys.clear();
+            action
+        } else {
+            let is_prefix = self.mode_bindings
+                .get(&self.current_mode)
+                .map(|bindings| {
+                    bindings.keys().any(|seq| seq.keys.starts_with(&self.current_sequence.keys))
+                })
+                .unwrap_or(false);
+
+            if !is_prefix {
+                self.current_sequence.keys.clear();
+            }
+
+            None
         }
     }
 
-    fn handle_normal_mode(&self, key_binding: Keybinding) -> Option<Action> {
+    fn handle_normal_mode(&self) -> Option<Action> {
         self.mode_bindings
             .get(&self.current_mode)
-            .and_then(|bindings| bindings.get(&key_binding).cloned())
+            .and_then(|bindings| bindings.get(&self.current_sequence).cloned())
     }
 
     fn handle_insert_mode(&self, key_binding: Keybinding) -> Option<Action> {
@@ -166,7 +196,7 @@ impl KeybindingManager {
             KeyCode::Char(c)   => Some(Action::InsertChar(c)),
             KeyCode::Backspace => Some(Action::DeleteChar(DeleteDirection::Behind)),
             KeyCode::Enter     => Some(Action::NewLine(NewLineDirection::Under)),
-            _ => self.mode_bindings.get(&Mode::Insert).and_then(|bindings| bindings.get(&key_binding).cloned()),
+            _ => self.mode_bindings.get(&Mode::Insert).and_then(|bindings| bindings.get(&self.current_sequence).cloned()),
         }
     }
 
@@ -174,7 +204,7 @@ impl KeybindingManager {
         match key_binding.key {
             KeyCode::Char(c) => Some(Action::InsertChar(c)),
             KeyCode::Backspace => Some(Action::DeleteChar(DeleteDirection::Behind)),
-            _ => self.mode_bindings.get(&Mode::Command).and_then(|bindings| bindings.get(&key_binding).cloned()),
+            _ => self.mode_bindings.get(&Mode::Command).and_then(|bindings| bindings.get(&self.current_sequence).cloned()),
         }
     }
 
