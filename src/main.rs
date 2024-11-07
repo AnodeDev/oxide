@@ -83,6 +83,8 @@ fn parse_action(action: Action, editor: &RefCell<Editor>, keybinding_manager: &R
                 parse_action(command, editor, keybinding_manager, tokio_runtime)?;
             }
         },
+        Action::FindFile => {
+        },
         _ => {},
     }
 

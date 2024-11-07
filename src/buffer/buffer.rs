@@ -1,10 +1,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::fs::{OpenOptions, File};
+use std::fs::File;
 use std::io::BufReader;
 use std::io::prelude::*;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::fmt;
+
+use log;
 
 use crate::keybinding::{DeleteDirection, NewLineDirection};
 
@@ -19,7 +21,7 @@ pub trait Manipulation {
 
 pub enum ContentSource {
     None,
-    File(File),
+    File(PathBuf),
 }
 
 #[derive(Eq, Hash, PartialEq, Clone, Copy)]
@@ -101,17 +103,14 @@ impl Buffer {
     }
 
     pub async fn from_file(path_str: &'static str) -> anyhow::Result<Rc<RefCell<Self>>> {
-        let path = Path::new(path_str);
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(path)?;
+        let mut path = PathBuf::new();
+        path.push(path_str);
+        let file = File::open(path.clone())?;
         let mut buf_reader = BufReader::new(&file);
         let mut content = String::new();
         let mut file_name = "[NO NAME]";
 
-        if let Some(name_osstr) = path.file_name() {
+        if let Some(name_osstr) = Path::new(path_str).file_name() {
             if let Some(name) = name_osstr.to_str() {
                 file_name = name;
             }
@@ -121,7 +120,7 @@ impl Buffer {
         Ok(Rc::new(RefCell::new(Buffer {
             title: file_name,
             content: content.split("\n").map(|line| line.to_string()).collect(),
-            source: ContentSource::File(file),
+            source: ContentSource::File(path),
             cursor: Cursor::new(),
             mode: Mode::Normal,
             killable: true,
@@ -130,17 +129,16 @@ impl Buffer {
         })))
     }
 
-    // CURRENTLY BUGGED: Doesn't overwrite existing content, just appends to the end of the first
-    // line
     pub async fn write_buffer(&mut self) -> anyhow::Result<()> {
         if !self.mutable {
             return Ok(())
         }
 
         match &mut self.source {
-            ContentSource::File(file) => {
+            ContentSource::File(path) => {
                 let content_str = self.content.join("\n");
                 let content_b = content_str.as_bytes();
+                let mut file = File::create(path)?;
 
                 file.write_all(content_b)?;
             },
@@ -259,6 +257,8 @@ impl Manipulation for Buffer {
             if self.cursor.y > self.content.len() - 1 {
                 self.cursor.y -= 1;
             }
+        } else {
+            self.content[self.cursor.y] = String::new();
         }
     }
 

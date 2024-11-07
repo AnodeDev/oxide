@@ -16,6 +16,7 @@ pub enum Action {
     Quit,
     WriteBuffer,
     ExecuteCommand,
+    FindFile,
 }
 
 #[derive(PartialEq, Eq, Hash, Clone)]
@@ -100,6 +101,15 @@ impl KeybindingManager {
                 (KeyCode::Char('d'), KeyModifiers::NONE)
             ],
             Action::DeleteLine);
+
+        self.add_binding(
+            Mode::Normal,
+            vec![
+                (KeyCode::Char(' '), KeyModifiers::NONE),
+                (KeyCode::Char('f'), KeyModifiers::NONE),
+                (KeyCode::Char('f'), KeyModifiers::NONE)
+            ],
+            Action::FindFile);
 
         self.add_binding(
             Mode::Normal,
