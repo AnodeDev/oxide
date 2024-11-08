@@ -47,12 +47,18 @@ impl Renderer {
                 Constraint::Fill(1),
             ]);
 
+
             let [ content_area, modeline, commandline ] = vertical.areas(frame.area());
             let [ numline, _, content ] = horizontal.areas(content_area);
-            let [ modeline_left, modeline_center, modeline_right ] = modeline_divide.areas(modeline);
+            let [ modeline_left, _modeline_center, _modeline_right ] = modeline_divide.areas(modeline);
             let [ modeline_a, modeline_b ] = modeline_left_divide.areas(modeline_left);
 
-            for (num, line) in buffer.content.iter().enumerate() {
+            for (num, line) in buffer.content
+                .iter()
+                .enumerate()
+                .skip(buffer.viewport.top)
+                .take(buffer.viewport.bottom() - buffer.viewport.top)
+            {
                 if buffer.cursor.y == num && buffer.mode != Mode::Command {
                     lines.push(format_line(line, Some(buffer.cursor.x)));
                 } else {
@@ -94,6 +100,10 @@ impl Renderer {
         })?;
 
         Ok(())
+    }
+
+    pub fn get_terminal_size(&self) -> std::io::Result<ratatui::layout::Size> {
+        self.terminal.size()
     }
 }
 

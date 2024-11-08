@@ -13,6 +13,8 @@ pub enum Action {
     DeleteChar(DeleteDirection),
     DeleteLine,
     MoveCursor(i32, i32),
+    TopOfBuffer,
+    EndOfBuffer,
     Quit,
     WriteBuffer,
     ExecuteCommand,
@@ -101,6 +103,19 @@ impl KeybindingManager {
                 (KeyCode::Char('d'), KeyModifiers::NONE)
             ],
             Action::DeleteLine);
+
+        self.add_binding(
+            Mode::Normal,
+            vec![
+                (KeyCode::Char('g'), KeyModifiers::NONE),
+                (KeyCode::Char('g'), KeyModifiers::NONE)
+            ],
+            Action::TopOfBuffer);
+
+        self.add_binding(
+            Mode::Normal,
+            vec![ (KeyCode::Char('G'), KeyModifiers::SHIFT) ],
+            Action::EndOfBuffer);
 
         self.add_binding(
             Mode::Normal,

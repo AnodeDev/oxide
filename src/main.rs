@@ -13,13 +13,14 @@ fn main() -> anyhow::Result<()> {
     setup_logger()?;
 
     let terminal = ratatui::init();
-    let editor = RefCell::new(Editor::new(terminal));
+    let editor = RefCell::new(Editor::new(terminal)?);
     let tokio_runtime = tokio::runtime::Runtime::new()?;
     let keybinding_manager = RefCell::new(KeybindingManager::new());
+    let terminal_height = editor.borrow().renderer.get_terminal_size()?.height as usize;
 
     // Test file (change to the directory of your choice)
-    let file_path = "/home/dexter/Personal/Programming/Rust/oxide/test.txt";
-    let file_buffer = tokio_runtime.block_on(Buffer::from_file(file_path))?;
+    let file_path = "/home/dexter/Personal/Programming/Rust/oxide/src/main.rs";
+    let file_buffer = tokio_runtime.block_on(Buffer::from_file(file_path, terminal_height))?;
     editor.borrow_mut().add_buffer(file_buffer);
 
     // A buffer that lists the currently open buffers
@@ -29,6 +30,7 @@ fn main() -> anyhow::Result<()> {
         "*Buffers*",
         buffer_names,
         ContentSource::None,
+        terminal_height,
         false,
         false,
     );
@@ -48,6 +50,7 @@ fn main() -> anyhow::Result<()> {
                 parse_action(action, &editor, &keybinding_manager, &tokio_runtime)?;
             }
         }
+
         if !editor.borrow().is_running {
             break;
         }
@@ -71,6 +74,8 @@ fn parse_action(action: Action, editor: &RefCell<Editor>, keybinding_manager: &R
         Action::DeleteChar(direction) => editor.borrow().get_active_buffer_mut().remove_char(direction),
         Action::DeleteLine => editor.borrow().get_active_buffer_mut().delete_line(),
         Action::MoveCursor(x, y) => editor.borrow().get_active_buffer_mut().move_cursor(x, y),
+        Action::TopOfBuffer => editor.borrow().get_active_buffer_mut().move_cursor_to_top(),
+        Action::EndOfBuffer => editor.borrow().get_active_buffer_mut().move_cursor_to_bot(),
         Action::Quit => editor.borrow_mut().is_running = false,
         Action::WriteBuffer => tokio_runtime.block_on(editor.borrow().get_active_buffer_mut().write_buffer())?,
         Action::ExecuteCommand => {
@@ -84,6 +89,7 @@ fn parse_action(action: Action, editor: &RefCell<Editor>, keybinding_manager: &R
             }
         },
         Action::FindFile => {
+            todo!("Implement Find File functionality")
         },
         _ => {},
     }

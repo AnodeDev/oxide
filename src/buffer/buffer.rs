@@ -6,12 +6,12 @@ use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::fmt;
 
-use log;
-
 use crate::keybinding::{DeleteDirection, NewLineDirection};
 
 pub trait Manipulation {
     fn move_cursor(&mut self, x: i32, y: i32);
+    fn move_cursor_to_top(&mut self);
+    fn move_cursor_to_bot(&mut self);
     fn add_char(&mut self, character: char);
     fn new_line(&mut self, direction: NewLineDirection);
     fn remove_char(&mut self, direction: DeleteDirection);
@@ -38,11 +38,17 @@ pub struct Cursor {
     pub desired_y: usize,
 }
 
+pub struct Viewport {
+    pub top: usize,
+    pub height: usize,
+}
+
 pub struct Buffer {
     pub title: &'static str,
     pub content: Vec<String>,
     source: ContentSource,
     pub cursor: Cursor,
+    pub viewport: Viewport,
     pub mode: Mode,
     pub killable: bool,
     pub mutable: bool,
@@ -60,6 +66,31 @@ impl Cursor {
     }
 }
 
+impl Viewport {
+    fn new(height: usize) -> Self {
+        Viewport {
+            top: 0,
+            height,
+        }
+    }
+
+    pub fn bottom(&self) -> usize {
+        self.top + self.height
+    }
+
+    fn adjust(&mut self, cursor_y: usize, content_len: usize) {
+        if cursor_y < self.top {
+            self.top = cursor_y;
+        } else if cursor_y >= self.bottom() {
+            self.top = cursor_y.saturating_sub(self.height) + 1;
+        }
+
+        if self.bottom() > content_len {
+            self.top = content_len.saturating_sub(self.height);
+        }
+    }
+}
+
 impl fmt::Display for Mode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -71,12 +102,13 @@ impl fmt::Display for Mode {
 }
 
 impl Buffer {
-    pub fn new(title: &'static str, content: Vec<String>, source: ContentSource, killable: bool, mutable: bool) -> Rc<RefCell<Self>> {
+    pub fn new(title: &'static str, content: Vec<String>, source: ContentSource, height: usize, killable: bool, mutable: bool) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Buffer {
             title,
             content,
             source,
             cursor: Cursor::new(),
+            viewport: Viewport::new(height - 2),
             mode: Mode::Normal,
             killable,
             mutable,
@@ -84,7 +116,7 @@ impl Buffer {
         }))
     }
 
-    pub fn scratch() -> Rc<RefCell<Self>> {
+    pub fn scratch(height: usize) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Buffer {
             title: "*Scratch*",
             content: vec![
@@ -95,6 +127,7 @@ impl Buffer {
             ],
             source: ContentSource::None,
             cursor: Cursor::new(),
+            viewport: Viewport::new(height - 2),
             mode: Mode::Normal,
             killable: false,
             mutable: false,
@@ -102,7 +135,7 @@ impl Buffer {
         }))
     }
 
-    pub async fn from_file(path_str: &'static str) -> anyhow::Result<Rc<RefCell<Self>>> {
+    pub async fn from_file(path_str: &'static str, height: usize) -> anyhow::Result<Rc<RefCell<Self>>> {
         let mut path = PathBuf::new();
         path.push(path_str);
         let file = File::open(path.clone())?;
@@ -122,6 +155,7 @@ impl Buffer {
             content: content.split("\n").map(|line| line.to_string()).collect(),
             source: ContentSource::File(path),
             cursor: Cursor::new(),
+            viewport: Viewport::new(height - 2),
             mode: Mode::Normal,
             killable: true,
             mutable: true,
@@ -154,6 +188,8 @@ impl Manipulation for Buffer {
         let new_y = (self.cursor.y as i32 + y).clamp(0, self.content.len() as i32 - 1) as usize;
         self.cursor.y = new_y;
 
+        self.viewport.adjust(self.cursor.y, self.content.len());
+
         if x != 0 {
             let current_line_len = self.content[self.cursor.y].len();
             let new_x = (self.cursor.x as i32 + x).clamp(0, current_line_len as i32) as usize;
@@ -165,6 +201,20 @@ impl Manipulation for Buffer {
             self.cursor.x = self.cursor.desired_x.min(current_line_len);
         }
      }
+
+    fn move_cursor_to_top(&mut self) {
+        self.cursor.x = 0;
+        self.cursor.y = 0;
+
+        self.viewport.adjust(self.cursor.y, self.content.len());
+    }
+
+    fn move_cursor_to_bot(&mut self) {
+        self.cursor.x = 0;
+        self.cursor.y = self.content.len() - 1;
+
+        self.viewport.adjust(self.cursor.y, self.content.len());
+    }
 
     fn add_char(&mut self, character: char) {
         let content: &mut String = match self.mode {

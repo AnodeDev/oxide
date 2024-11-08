@@ -7,7 +7,7 @@ use std::cell::{Ref, RefMut, RefCell};
 use std::rc::Rc;
 use std::io::Stdout;
 
-use crate::buffer::{Buffer, Manipulation};
+use crate::buffer::Buffer;
 use crate::renderer::Renderer;
 
 pub struct Editor {
@@ -18,13 +18,16 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(terminal: Terminal<CrosstermBackend<Stdout>>) -> Self {
-        Editor {
-            buffers: vec![Buffer::scratch()],
+    pub fn new(terminal: Terminal<CrosstermBackend<Stdout>>) -> anyhow::Result<Self> {
+        let renderer = Renderer::new(terminal);
+        let height = renderer.get_terminal_size()?.height as usize;
+
+        Ok(Editor {
+            buffers: vec![Buffer::scratch(height)],
             active_buffer: 0,
-            renderer: Renderer::new(terminal),
+            renderer,
             is_running: true,
-        }
+        })
     }
 
     pub fn add_buffer(&mut self, buffer: Rc<RefCell<Buffer>>) {
