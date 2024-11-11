@@ -19,7 +19,7 @@ fn main() -> anyhow::Result<()> {
     let terminal_height = editor.borrow().renderer.get_terminal_size()?.height as usize;
 
     // Test file (change to the directory of your choice)
-    let file_path = "/home/dexter/Personal/Programming/Rust/oxide/src/main.rs";
+    let file_path = "/home/dexter/Personal/Programming/Rust/oxide/test.txt";
     let file_buffer = tokio_runtime.block_on(Buffer::from_file(file_path, terminal_height))?;
     editor.borrow_mut().add_buffer(file_buffer);
 
@@ -65,13 +65,13 @@ fn main() -> anyhow::Result<()> {
 fn parse_action(action: Action, editor: &RefCell<Editor>, keybinding_manager: &RefCell<KeybindingManager>, tokio_runtime: &tokio::runtime::Runtime) -> anyhow::Result<()> {
     match action {
         Action::SwitchMode(mode) => {
-            editor.borrow().get_active_buffer_mut().mode = mode;
+            editor.borrow().get_active_buffer_mut().switch_mode(mode);
         },
         Action::InsertChar(c) => {
             editor.borrow().get_active_buffer_mut().add_char(c);
         },
         Action::NewLine(direction) => editor.borrow().get_active_buffer_mut().new_line(direction),
-        Action::DeleteChar(direction) => editor.borrow().get_active_buffer_mut().remove_char(direction),
+        Action::DeleteChar => editor.borrow().get_active_buffer_mut().remove_char(),
         Action::DeleteLine => editor.borrow().get_active_buffer_mut().delete_line(),
         Action::MoveCursor(x, y) => editor.borrow().get_active_buffer_mut().move_cursor(x, y),
         Action::TopOfBuffer => editor.borrow().get_active_buffer_mut().move_cursor_to_top(),

@@ -10,7 +10,7 @@ use anyhow;
 use std::io::Stdout;
 use std::cell::Ref;
 
-use crate::buffer::{Buffer, Mode};
+use crate::buffer::{Buffer, Cursor, Mode};
 
 pub struct Renderer {
     terminal: Terminal<CrosstermBackend<Stdout>>,
@@ -25,6 +25,10 @@ impl Renderer {
         let mut lines: Vec<Line> = Vec::new();
         let mut nums: Vec<Line> = Vec::new();
         let mut commandline_line: Line = Line::raw("");
+        let visual_mode_on = match buffer.mode {
+            Mode::Visual => true,
+            _ => false,
+        };
 
         self.terminal.draw(|frame| {
             let vertical = Layout::vertical([
@@ -60,15 +64,21 @@ impl Renderer {
                 .take(buffer.viewport.bottom() - buffer.viewport.top)
             {
                 if buffer.cursor.y == num && buffer.mode != Mode::Command {
-                    lines.push(format_line(line, Some(buffer.cursor.x)));
+                    lines.push(format_line(line, num, &buffer.cursor, visual_mode_on, buffer.visual_start, buffer.visual_end, true));
                 } else {
-                    lines.push(format_line(line, None));
+                    lines.push(format_line(line, num, &buffer.cursor, visual_mode_on, buffer.visual_start, buffer.visual_end, false));
                 }
-                nums.push(format_line(&format!("{:>3}", num + 1), None).style(Style::default().fg(Color::DarkGray)));
+                nums.push(format_line(&format!("{:>3}", num + 1), num, &buffer.cursor, false, buffer.visual_start, buffer.visual_end, false).style(Style::default().fg(Color::DarkGray)));
             }
 
             if buffer.mode == Mode::Command {
-                commandline_line = format_line(&format!(":{}", buffer.commandline), Some(buffer.cursor.x + 1));
+                let mut cursor = buffer.cursor.clone();
+                if cursor.x > buffer.commandline.len() {
+                    cursor.x = 1;
+                } else {
+                    cursor.x += 1;
+                }
+                commandline_line = format_line(&format!(":{}", buffer.commandline), 0, &cursor, false, buffer.visual_start, buffer.visual_end, true)
             }
 
             frame.render_widget(
@@ -107,17 +117,60 @@ impl Renderer {
     }
 }
 
-fn format_line(line: &str, cursor_x: Option<usize>) -> Line<'static> {
+fn format_line(
+    line: &str,
+    line_num: usize,
+    cursor: &Cursor,
+    visual_mode_on: bool,
+    visual_start_opt: Option<Cursor>,
+    visual_end_opt: Option<Cursor>,
+    cursor_line: bool) -> Line<'static> {
     let mut spans: Vec<Span> = Vec::new();
+    let cursor_style = Style::new().fg(Color::Black).bg(Color::Yellow);
+    let highlight_style = Style::default().bg(Color::LightRed);
     let line_str = format!("{} ", line);
+    let mut is_highlighted = false;
 
     for (num, c) in line_str.chars().enumerate() {
-        if cursor_x.is_some() && cursor_x == Some(num) {
-            spans.push(Span::styled(c.to_string(), Style::default().fg(Color::Black).bg(Color::Yellow)));
-        } else {
-            spans.push(Span::from(c.to_string()));
+        let span = Span::from(c.to_string());
+
+        if visual_mode_on {
+            is_highlighted = check_cursor_for_visual(cursor, line_num, num, visual_start_opt, visual_end_opt);
         }
+
+        if cursor_line && cursor.x == num {
+            spans.push(span.style(cursor_style));
+        } else if is_highlighted {
+            spans.push(span.style(highlight_style));
+        }else {
+            spans.push(span);
+        }
+
+        is_highlighted = false;
     }
 
     Line::from(spans)
+}
+
+fn check_cursor_for_visual(cursor: &Cursor, line_num: usize, c_num: usize, visual_start: Option<Cursor>, visual_end: Option<Cursor>) -> bool {
+    if let (Some(start), Some(end)) = (visual_start, visual_end) {
+        let (top, bottom) = if start.y <= end.y { (start, end) } else { (end, start) };
+        
+        if line_num >= top.y && line_num <= bottom.y {
+            if cursor.y != line_num {
+                return true;
+            } else if top.y == bottom.y {
+                let (left, right) = if start.x <= end.x { (start.x, end.x) } else { (end.x, start.x) };
+                return c_num >= left && c_num <= right;
+            } else if line_num == top.y {
+                return if start.y == top.y { c_num >= start.x } else { c_num >= end.x };
+            } else if line_num == bottom.y {
+                return if start.y == bottom.y { c_num <= start.x } else { c_num <= end.x };
+            } else {
+                return true;
+            }
+        }
+    }
+
+    false
 }
