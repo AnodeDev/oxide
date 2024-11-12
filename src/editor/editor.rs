@@ -21,7 +21,7 @@ pub struct Editor {
 impl Editor {
     pub fn new(terminal: Terminal<CrosstermBackend<Stdout>>) -> anyhow::Result<Self> {
         let renderer = Renderer::new(terminal);
-        let height = renderer.get_terminal_size()?.height as usize;
+        let height   = renderer.get_terminal_size()?.height as usize;
 
         Ok(Editor {
             buffers: vec![Buffer::scratch(height)],

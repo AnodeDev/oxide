@@ -229,9 +229,9 @@ impl KeybindingManager {
         self.current_sequence.keys.push(key_binding);
 
         let action = match self.current_mode {
-            Mode::Normal => self.handle_normal_mode(),
-            Mode::Insert => self.handle_insert_mode(key_binding),
-            Mode::Visual => self.handle_visual_mode(),
+            Mode::Normal  => self.handle_normal_mode(),
+            Mode::Insert  => self.handle_insert_mode(key_binding),
+            Mode::Visual  => self.handle_visual_mode(),
             Mode::Command => self.handle_command_mode(key_binding),
         };
 
@@ -281,9 +281,11 @@ impl KeybindingManager {
 
     fn handle_command_mode(&self, key_binding: Keybinding) -> Option<Action> {
         match key_binding.key {
-            KeyCode::Char(c) => Some(Action::InsertChar(c)),
+            KeyCode::Char(c)   => Some(Action::InsertChar(c)),
             KeyCode::Backspace => Some(Action::DeleteChar),
-            _ => self.mode_bindings.get(&Mode::Command).and_then(|bindings| bindings.get(&self.current_sequence).cloned()),
+            _                  => self.mode_bindings
+                                      .get(&Mode::Command)
+                                      .and_then(|bindings| bindings.get(&self.current_sequence).cloned()),
         }
     }
 

@@ -70,13 +70,32 @@ impl Renderer {
             {
                 // Checks if the current line is the one with the cursor
                 if buffer.cursor.y == num && buffer.mode != Mode::Command {
-                    lines.push(format_line(line, num, &buffer.cursor, visual_mode_on, buffer.visual_start, buffer.visual_end, true));
+                    lines.push(format_line(line,
+                                           num,
+                                           &buffer.cursor,
+                                           visual_mode_on,
+                                           buffer.visual_start,
+                                           buffer.visual_end,
+                                           true));
                 } else {
-                    lines.push(format_line(line, num, &buffer.cursor, visual_mode_on, buffer.visual_start, buffer.visual_end, false));
+                    lines.push(format_line(line,
+                                           num,
+                                           &buffer.cursor,
+                                           visual_mode_on,
+                                           buffer.visual_start,
+                                           buffer.visual_end,
+                                           false));
                 }
 
                 // Adds the line numbers and pushes them to the right
-                nums.push(format_line(&format!("{:>3}", num + 1), num, &buffer.cursor, false, buffer.visual_start, buffer.visual_end, false).style(Style::default().fg(Color::DarkGray)));
+                nums.push(format_line(&format!("{:>3}", num + 1),
+                                      num,
+                                      &buffer.cursor,
+                                      false,
+                                      buffer.visual_start,
+                                      buffer.visual_end,
+                                      false)
+                        .style(Style::default().fg(Color::DarkGray)));
             }
 
             if buffer.mode == Mode::Command {
@@ -86,7 +105,13 @@ impl Renderer {
                 } else {
                     cursor.x += 1;
                 }
-                commandline_line = format_line(&format!(":{}", buffer.commandline), 0, &cursor, false, buffer.visual_start, buffer.visual_end, true)
+                commandline_line = format_line(&format!(":{}", buffer.commandline),
+                                               0,
+                                               &cursor,
+                                               false,
+                                               buffer.visual_start,
+                                               buffer.visual_end,
+                                               true);
             }
 
             // Renders the buffer
@@ -129,14 +154,14 @@ impl Renderer {
 
 /// Formats the line
 /// TODO: Reduce the amount of parameters, or take only the necessary parts of the parameters
-fn format_line(
-    line: &str,
-    line_num: usize,
-    cursor: &Cursor,
-    visual_mode_on: bool,
-    visual_start_opt: Option<Cursor>,
-    visual_end_opt: Option<Cursor>,
-    cursor_line: bool) -> Line<'static> {
+fn format_line(line: &str,
+               line_num: usize,
+               cursor: &Cursor,
+               visual_mode_on: bool,
+               visual_start_opt: Option<Cursor>,
+               visual_end_opt: Option<Cursor>,
+               cursor_line: bool) -> Line<'static>
+{
     let mut spans: Vec<Span> = Vec::new();
     let cursor_style = Style::new().fg(Color::Black).bg(Color::Yellow);
     let highlight_style = Style::default().bg(Color::LightRed);
@@ -184,7 +209,11 @@ fn check_cursor_for_visual(line_num: usize, c_num: usize, visual_start: Option<C
         if line_num >= top.y && line_num <= bottom.y {
             if line_num == top.y && line_num == bottom.y {
                 // Single line selection
-                let (left, right) = if start.x <= end.x { (start.x, end.x) } else { (end.x, start.x) };
+                let (left, right) = if start.x <= end.x {
+                    (start.x, end.x)
+                } else {
+                    (end.x, start.x)
+                };
                 return c_num >= left && c_num <= right;
             } else if line_num == top.y {
                 // First line of multi-line selection
