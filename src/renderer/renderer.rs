@@ -12,6 +12,7 @@ use std::cell::Ref;
 
 use crate::buffer::{Buffer, Cursor, Mode};
 
+/// Handles the rendering of the buffer
 pub struct Renderer {
     terminal: Terminal<CrosstermBackend<Stdout>>,
 }
@@ -21,15 +22,17 @@ impl Renderer {
         Renderer { terminal }
     }
 
+    /// Renders the current buffer
     pub fn render(&mut self, buffer: Ref<Buffer>) -> anyhow::Result<()> {
         let mut lines: Vec<Line> = Vec::new();
         let mut nums: Vec<Line> = Vec::new();
         let mut commandline_line: Line = Line::raw("");
-        let visual_mode_on = match buffer.mode {
+        let visual_mode_on = match buffer.mode { // Checks if visual mode is on
             Mode::Visual => true,
             _ => false,
         };
 
+        // Creates the buffer areas
         self.terminal.draw(|frame| {
             let vertical = Layout::vertical([
                 Constraint::Fill(1),
@@ -52,22 +55,27 @@ impl Renderer {
             ]);
 
 
+            // Sets the buffer areas
             let [ content_area, modeline, commandline ] = vertical.areas(frame.area());
             let [ numline, _, content ] = horizontal.areas(content_area);
             let [ modeline_left, _modeline_center, _modeline_right ] = modeline_divide.areas(modeline);
             let [ modeline_a, modeline_b ] = modeline_left_divide.areas(modeline_left);
 
+            // Iterates over the visible buffer
             for (num, line) in buffer.content
                 .iter()
                 .enumerate()
                 .skip(buffer.viewport.top)
                 .take(buffer.viewport.bottom() - buffer.viewport.top)
             {
+                // Checks if the current line is the one with the cursor
                 if buffer.cursor.y == num && buffer.mode != Mode::Command {
                     lines.push(format_line(line, num, &buffer.cursor, visual_mode_on, buffer.visual_start, buffer.visual_end, true));
                 } else {
                     lines.push(format_line(line, num, &buffer.cursor, visual_mode_on, buffer.visual_start, buffer.visual_end, false));
                 }
+
+                // Adds the line numbers and pushes them to the right
                 nums.push(format_line(&format!("{:>3}", num + 1), num, &buffer.cursor, false, buffer.visual_start, buffer.visual_end, false).style(Style::default().fg(Color::DarkGray)));
             }
 
@@ -81,6 +89,7 @@ impl Renderer {
                 commandline_line = format_line(&format!(":{}", buffer.commandline), 0, &cursor, false, buffer.visual_start, buffer.visual_end, true)
             }
 
+            // Renders the buffer
             frame.render_widget(
                 Paragraph::new(lines),
                 content,
@@ -112,11 +121,14 @@ impl Renderer {
         Ok(())
     }
 
+    // Returns the terminal size
     pub fn get_terminal_size(&self) -> std::io::Result<ratatui::layout::Size> {
         self.terminal.size()
     }
 }
 
+/// Formats the line
+/// TODO: Reduce the amount of parameters, or take only the necessary parts of the parameters
 fn format_line(
     line: &str,
     line_num: usize,
@@ -131,13 +143,16 @@ fn format_line(
     let line_str = format!("{} ", line);
     let mut is_highlighted = false;
 
+    // Iterates over the characters of the line
     for (num, c) in line_str.chars().enumerate() {
         let span = Span::from(c.to_string());
 
+        // Highlights if current character is selected
         if visual_mode_on {
-            is_highlighted = check_cursor_for_visual(cursor, line_num, num, visual_start_opt, visual_end_opt);
+            is_highlighted = check_cursor_for_visual(line_num, num, visual_start_opt, visual_end_opt);
         }
 
+        // Highlights if current character matches the cursor position
         if cursor_line && cursor.x == num {
             spans.push(span.style(cursor_style));
         } else if is_highlighted {
@@ -152,21 +167,33 @@ fn format_line(
     Line::from(spans)
 }
 
-fn check_cursor_for_visual(cursor: &Cursor, line_num: usize, c_num: usize, visual_start: Option<Cursor>, visual_end: Option<Cursor>) -> bool {
+/// Checks if the current character position is highlighted
+fn check_cursor_for_visual(line_num: usize, c_num: usize, visual_start: Option<Cursor>, visual_end: Option<Cursor>) -> bool {
     if let (Some(start), Some(end)) = (visual_start, visual_end) {
-        let (top, bottom) = if start.y <= end.y { (start, end) } else { (end, start) };
+        // Sets the top and bottom cursor
+        let (top, bottom) = if start.y < end.y {
+            (start, end)
+        } else if start.y == end.y && start.x < end.x {
+            (start, end)
+        } else if start.y == end.y && start.x > end.x {
+            (end, start)
+        } else {
+            (end, start)
+        };
         
         if line_num >= top.y && line_num <= bottom.y {
-            if cursor.y != line_num {
-                return true;
-            } else if top.y == bottom.y {
+            if line_num == top.y && line_num == bottom.y {
+                // Single line selection
                 let (left, right) = if start.x <= end.x { (start.x, end.x) } else { (end.x, start.x) };
                 return c_num >= left && c_num <= right;
             } else if line_num == top.y {
-                return if start.y == top.y { c_num >= start.x } else { c_num >= end.x };
+                // First line of multi-line selection
+                return c_num >= top.x;
             } else if line_num == bottom.y {
-                return if start.y == bottom.y { c_num <= start.x } else { c_num <= end.x };
+                // Last line of multi-line selection
+                return c_num <= bottom.x;
             } else {
+                // Middle lines of multi-line selection
                 return true;
             }
         }

@@ -12,6 +12,7 @@ use oxide::utils::logging::setup_logger;
 fn main() -> anyhow::Result<()> {
     setup_logger()?;
 
+    // Initializes core components
     let terminal = ratatui::init();
     let editor = RefCell::new(Editor::new(terminal)?);
     let tokio_runtime = tokio::runtime::Runtime::new()?;
@@ -29,7 +30,7 @@ fn main() -> anyhow::Result<()> {
     let buffers_buffer = Buffer::new(
         "*Buffers*",
         buffer_names,
-        ContentSource::None,
+        ContentSource::NoSource,
         terminal_height,
         false,
         false,
@@ -39,10 +40,13 @@ fn main() -> anyhow::Result<()> {
     editor.borrow_mut().active_buffer = 1;
 
 
+    // Main loop
     loop {
+        // Renders the buffer and makes sure the keybinding manager has the correct mode set
         editor.borrow_mut().render()?;
         keybinding_manager.borrow_mut().set_mode(editor.borrow().get_active_buffer().mode);
 
+        // Checks the user keypresses
         if let Event::Key(key_event) = event::read()? {
             let input_result = keybinding_manager.borrow_mut().handle_input(key_event);
 
@@ -51,17 +55,20 @@ fn main() -> anyhow::Result<()> {
             }
         }
 
+        // Breaks the loop
         if !editor.borrow().is_running {
             break;
         }
     }
 
+    // Restores the terminal to the correct mode
     ratatui::restore();
 
     Ok(())
 }
 
 
+/// Parses the keybinding and executes the corresponding action
 fn parse_action(action: Action, editor: &RefCell<Editor>, keybinding_manager: &RefCell<KeybindingManager>, tokio_runtime: &tokio::runtime::Runtime) -> anyhow::Result<()> {
     match action {
         Action::SwitchMode(mode) => {

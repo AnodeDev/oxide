@@ -10,6 +10,7 @@ use std::io::Stdout;
 use crate::buffer::Buffer;
 use crate::renderer::Renderer;
 
+/// Holds all the editor states
 pub struct Editor {
     pub buffers: Vec<Rc<RefCell<Buffer>>>,
     pub active_buffer: usize,
@@ -34,14 +35,17 @@ impl Editor {
         self.buffers.push(buffer);
     }
 
+    /// Borrows the current buffer
     pub fn get_active_buffer(&self) -> Ref<Buffer> {
         self.buffers[self.active_buffer].borrow()
     }
 
+    /// Borrows the current buffer as mutable
     pub fn get_active_buffer_mut(&self) -> RefMut<Buffer> {
         self.buffers[self.active_buffer].borrow_mut()
     }
 
+    /// Calls the rendering function to not borrow past the editor's lifetime
     pub fn render(&mut self) -> anyhow::Result<()> {
         self.renderer.render(self.buffers[self.active_buffer].borrow())?;
 

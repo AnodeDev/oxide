@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use crate::buffer::Mode;
 
+/// Defines all the available actions
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub enum Action {
     Nop,
@@ -21,29 +22,34 @@ pub enum Action {
     FindFile,
 }
 
+/// Defines where a new line can go
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub enum NewLineDirection {
     Under,
     Over,
 }
 
+/// Stores the users currently pressed keys
 #[derive(PartialEq, Eq, Hash)]
 pub struct KeySequence {
     pub keys: Vec<Keybinding>,
 }
 
+/// Stores the key information for ease of access
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub struct Keybinding {
     pub key: KeyCode,
     pub modifiers: KeyModifiers,
 }
 
+/// Stores all available keybindings as well as the currently pressed one
 pub struct KeybindingManager {
     mode_bindings: HashMap<Mode, HashMap<KeySequence, Action>>,
     current_mode: Mode,
     current_sequence: KeySequence,
 }
 
+/// Handles parsing the command line commands
 pub struct CommandParser;
 
 impl KeybindingManager {
@@ -58,7 +64,9 @@ impl KeybindingManager {
         manager
     }
 
+    /// Defines all default keybindings
     fn setup_default_bindings(&mut self) {
+        // NORMAL MODE
         self.add_binding(
             Mode::Normal,
             vec![ (KeyCode::Char('n'), KeyModifiers::NONE) ],
@@ -139,6 +147,7 @@ impl KeybindingManager {
             vec![ (KeyCode::Char('v'), KeyModifiers::NONE) ],
             Action::SwitchMode(Mode::Visual));
 
+        // INSERT MODE
         self.add_binding(
             Mode::Insert,
             vec![ (KeyCode::Esc, KeyModifiers::NONE) ],
@@ -149,6 +158,7 @@ impl KeybindingManager {
             vec![ (KeyCode::Enter, KeyModifiers::NONE) ],
             Action::NewLine(NewLineDirection::Under));
 
+        // VISUAL MODE
         self.add_binding(
             Mode::Visual,
             vec![ (KeyCode::Char('n'), KeyModifiers::NONE) ],
@@ -179,6 +189,7 @@ impl KeybindingManager {
             vec![ (KeyCode::Esc, KeyModifiers::NONE) ],
             Action::SwitchMode(Mode::Normal));
 
+        // COMMAND MODE
         self.add_binding(
             Mode::Command,
             vec![ (KeyCode::Esc, KeyModifiers::NONE) ],
@@ -191,19 +202,24 @@ impl KeybindingManager {
 
     }
 
+    /// Adds keybindings to the keybinding manager
     pub fn add_binding(&mut self, mode: Mode, key_sequence: Vec<(KeyCode, KeyModifiers)>, action: Action) {
+        // Parses the key sequence
         let sequence = KeySequence {
             keys: key_sequence.into_iter()
                 .map(|(key, modifiers)| Keybinding { key, modifiers })
                 .collect()
         };
 
+        // Creates a new entry
         self.mode_bindings
             .entry(mode)
             .or_insert_with(HashMap::new)
             .insert(sequence, action);
     }
 
+    /// Checks the mode of the keybinding and the current buffer mode and redirects to the
+    /// appropriate parser
     pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
         let key_binding = Keybinding {
             key: key_event.code,
@@ -220,6 +236,9 @@ impl KeybindingManager {
         };
 
 
+        // If the keybinding exists, it's sent back
+        // If not it checks if the current key sequence exists in any existing
+        // keybinding and stores the current key sequence
         if action.is_some() {
             self.current_sequence.keys.clear();
             action
@@ -268,10 +287,12 @@ impl KeybindingManager {
         }
     }
 
+    /// Sets the keybinding manager's mode
     pub fn set_mode(&mut self, mode: Mode) {
         self.current_mode = mode;
     }
 
+    /// Returns the keybinding manager's mode
     pub fn get_current_mode(&self) -> &Mode {
         &self.current_mode
     }

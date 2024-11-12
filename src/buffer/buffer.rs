@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use crate::keybinding::NewLineDirection;
 
+/// Handles buffer manipulation
 pub trait Manipulation {
     fn move_cursor(&mut self, x: i32, y: i32);
     fn move_cursor_to_top(&mut self);
@@ -21,10 +22,11 @@ pub trait Manipulation {
 }
 
 pub enum ContentSource {
-    None,
+    NoSource,
     File(PathBuf),
 }
 
+/// All available modal modes
 #[derive(Eq, Hash, PartialEq, Clone, Copy)]
 pub enum Mode {
     Normal,
@@ -33,24 +35,28 @@ pub enum Mode {
     Command,
 }
 
+/// Stores the cursor position
 #[derive(Debug, Clone, Copy)]
 pub struct Cursor {
     pub x: usize,
     pub y: usize,
-    pub desired_x: usize,
-    pub desired_y: usize,
+    pub desired_x: usize, // If line is shorter than x, the original x is stored here
+    pub desired_y: usize, // If cursor is moved, ex to command line, y is stored here
 }
 
+/// The visible part of the buffer content
 pub struct Viewport {
     pub top: usize,
     pub height: usize,
 }
 
+/// The state of the buffer
 pub struct BufferState {
-    pub killable: bool,
-    pub mutable: bool,
+    pub killable: bool, // If the buffer can be killed by the user or not
+    pub mutable: bool,  // If the buffer can be mutated by the user or not
 }
 
+/// Buffer holds the content from a specific source
 pub struct Buffer {
     pub title: &'static str,
     pub content: Vec<String>,
@@ -111,6 +117,7 @@ impl fmt::Display for Mode {
     }
 }
 
+/// Implements some preset buffer states for code cleanliness
 impl BufferState {
     fn new(killable: bool, mutable: bool) -> Self {
         BufferState { killable, mutable }
@@ -140,6 +147,8 @@ impl std::default::Default for BufferState {
     }
 }
 
+/// Implements some preset buffers for code cleanliness
+/// The functions returns RefCells to keep from having to clone the buffers when modifying them
 impl Buffer {
     pub fn new(title: &'static str, content: Vec<String>, source: ContentSource, height: usize, killable: bool, mutable: bool) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Buffer {
@@ -156,6 +165,8 @@ impl Buffer {
         }))
     }
 
+    /// The scratch buffer is similar to the one in Emacs, it's an unbound buffer where the user
+    /// can write stuff and it won't be saved to a file
     pub fn scratch(height: usize) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Buffer {
             title: "*Scratch*",
@@ -165,7 +176,7 @@ impl Buffer {
                 "It's meant to be used to play around, sketch, and try new plugins.".to_string(),
                 String::new(),
             ],
-            source: ContentSource::None,
+            source: ContentSource::NoSource,
             cursor: Cursor::new(),
             viewport: Viewport::new(height - 2),
             mode: Mode::Normal,
@@ -205,6 +216,8 @@ impl Buffer {
         })))
     }
 
+    /// Saves to a file
+    /// Is async to not freeze the editor if it's a large file or something happens
     pub async fn write_buffer(&mut self) -> anyhow::Result<()> {
         if !self.state.mutable {
             return Ok(())
@@ -227,11 +240,16 @@ impl Buffer {
 
 impl Manipulation for Buffer {
     fn move_cursor(&mut self, x: i32, y: i32) {
+        // Sets the new y value
+        // Clamp is used to make sure it doesn't exceed the length of the line or 0
         let new_y = (self.cursor.y as i32 + y).clamp(0, self.content.len() as i32 - 1) as usize;
         self.cursor.y = new_y;
 
+        // Adjusts the viewport to match the cursor position
         self.viewport.adjust(self.cursor.y, self.content.len());
 
+        // Checks if cursor is moved horiozontally
+        // If not, it checks if x is larger than the current lines length and adjusts accordingly
         if x != 0 {
             let current_line_len = self.content[self.cursor.y].len();
             let new_x = (self.cursor.x as i32 + x).clamp(0, current_line_len as i32) as usize;
@@ -243,6 +261,7 @@ impl Manipulation for Buffer {
             self.cursor.x = self.cursor.desired_x.min(current_line_len);
         }
 
+        // Checks if visual mode is on and makes sure to adjust the visual cursor accordingly
         if let Some(visual_end) = &mut self.visual_end {
             visual_end.x = self.cursor.x;
             visual_end.y = self.cursor.y;
@@ -266,6 +285,7 @@ impl Manipulation for Buffer {
     }
 
     fn switch_mode(&mut self, mode: Mode) {
+        // Makes sure to reset the visual cursors
         if self.mode == Mode::Visual {
             self.visual_start = None;
             self.visual_end = None;
@@ -282,7 +302,9 @@ impl Manipulation for Buffer {
         }
     }
 
+    /// Adds a character to the buffer or the command line
     fn add_char(&mut self, character: char) {
+        // Minimizes repetetive code by editing the current line from either source
         let content: &mut String = match self.mode {
             Mode::Insert => {
                 &mut self.content[self.cursor.y]
@@ -299,6 +321,7 @@ impl Manipulation for Buffer {
 
                 &mut self.commandline
             },
+            // If user is in normal- or visual mode, something is wrong
             Mode::Normal | Mode::Visual => todo!("Throw ERROR: Should never be Normal mode"),
         };
 
@@ -306,6 +329,7 @@ impl Manipulation for Buffer {
         self.cursor.x += 1;
     }
 
+    /// Inserts a new line either under or above the cursor
     fn new_line(&mut self, direction: NewLineDirection) {
         match self.mode {
             Mode::Insert => {
@@ -332,6 +356,8 @@ impl Manipulation for Buffer {
             _ => {},
         }
     }
+
+    /// Implements the remove character logic for all modes
     fn remove_char(&mut self) {
         match self.mode {
             Mode::Insert => {
@@ -347,6 +373,7 @@ impl Manipulation for Buffer {
                     self.content[self.cursor.y].push_str(&current_line);
                 }
             },
+            // Removes the character under the cursor, like 'x' in Neovim
             Mode::Normal => {
                 if self.cursor.x < self.content[self.cursor.y].len() {
                     self.content[self.cursor.y].remove(self.cursor.x);
@@ -359,40 +386,74 @@ impl Manipulation for Buffer {
                     self.cursor.x -= 1;
                 }
             },
+            // Removes the selected characters
             Mode::Visual => {
                 if let (Some(start), Some(end)) = (&mut self.visual_start, &mut self.visual_end) {
-                    let (top, bottom) = if start.y <= end.y { (start, end) } else { (end, start) };
+                    // Sets the top and bottom cursor positions 
+                    let (top, bottom) = if start.y < end.y {
+                        (start, end)
+                    } else if start.y == end.y && start.x < end.x {
+                        (start, end)
+                    } else if start.y == end.y && start.x > end.x {
+                        (end, start)
+                    } else {
+                        (end, start)
+                    };
 
                     let mut selected_lines: Vec<String> = self.content[top.y..bottom.y + 1].iter().map(|line| line.to_string()).collect();
 
-                    let new_top_line = selected_lines[0][..top.x].to_string();
+                    // Checks is selection is on one line or multiple lines
+                    let new_top_line = if top.y < bottom.y {
+                        selected_lines[0][..top.x].to_string()
+                    } else {
+                        let mut beginning = selected_lines[0][..top.x].to_string();
+                        let end = selected_lines[0][bottom.x + 1..].to_string();
+                        beginning.push_str(&end);
 
+                        beginning
+                    };
+
+                    // Checks if the whole line is selected
                     if top.x == 0 && (bottom.x == selected_lines[0].len() || selected_lines.len() > 1) {
-                        self.content.remove(top.y);
-                        bottom.y -= 1;
+                        self.content[top.y] = "".to_string();
                     } else {
                         self.content[top.y] = new_top_line;
-                        top.y += 1;
                     }
 
+                    // Removes first and last line from selected_lines
                     selected_lines.remove(0);
+                    let last_line = selected_lines.pop();
 
-                    if let Some(last_line) = selected_lines.pop() {
-                        if last_line.len() > 0 {
-                            if bottom.x == last_line.len() {
-                                bottom.x -= 1;
-                            }
-
-                            self.content[bottom.y] = last_line[bottom.x + 1..].to_string();
-                        } else {
-                            self.content.remove(bottom.y);
-                        }
-                    }
-
+                    // Removes all selected lines between first and last
                     for (num, _line) in selected_lines.iter().enumerate() {
-                        self.content.remove(top.y + num);
+                        self.content.remove(top.y + num + 1);
                     }
 
+                    // Makes sure bottom.y is set correctly
+                    bottom.y = top.y + 1;
+
+                    // Checks if last line even exists
+                    match last_line {
+                        Some(line) => {
+                            if line.len() > 0 {
+                                if bottom.x == line.len() {
+                                    bottom.x -= 1;
+                                }
+
+                                self.content[bottom.y] = line[bottom.x + 1..].to_string();
+
+                                let current_line = self.content.remove(bottom.y);
+
+                                self.cursor.x = top.y + self.content[top.y].len();
+                                self.content[top.y].push_str(&current_line);
+                            } else {
+                                self.content.remove(bottom.y);
+                            }
+                        },
+                        None => {},
+                    }
+
+                    // Updates the cursor position and switches back to normal mode
                     self.cursor.x = top.x;
                     self.cursor.y = top.y;
                     self.switch_mode(Mode::Normal);
@@ -403,6 +464,7 @@ impl Manipulation for Buffer {
         };
     }
 
+    // Deletes the current line
     fn delete_line(&mut self) {
         if self.content.len() > 1 {
             self.content.remove(self.cursor.y);
@@ -415,6 +477,7 @@ impl Manipulation for Buffer {
         }
     }
 
+    // Returns the current command from the command line
     fn get_command(&mut self) -> String {
         let command = self.commandline.clone();
 
