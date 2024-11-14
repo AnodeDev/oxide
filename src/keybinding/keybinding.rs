@@ -5,10 +5,10 @@ use std::collections::HashMap;
 use crate::buffer::Mode;
 
 /// Defines all the available actions
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Action {
     Nop,
-    SwitchMode(Mode),
+    SwitchMode(ModeParams),
     InsertChar(char),
     NewLine(NewLineDirection),
     DeleteChar,
@@ -22,11 +22,35 @@ pub enum Action {
     FindFile,
 }
 
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub enum ModeParams {
+    Normal{
+        mode: Mode,
+    },
+    Insert {
+        mode: Mode, 
+        insert_direction: InsertDirection,
+    },
+    Visual{
+        mode: Mode,
+    },
+    Command {
+        mode: Mode,
+        prefix: String
+    },
+}
+
 /// Defines where a new line can go
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum NewLineDirection {
     Under,
     Over,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub enum InsertDirection {
+    Before,
+    After,
 }
 
 /// Stores the users currently pressed keys
@@ -90,7 +114,18 @@ impl KeybindingManager {
         self.add_binding(
             Mode::Normal,
             vec![ (KeyCode::Char('s'), KeyModifiers::NONE) ],
-            Action::SwitchMode(Mode::Insert));
+            Action::SwitchMode(ModeParams::Insert {
+                mode: Mode::Insert,
+                insert_direction: InsertDirection::Before,
+            }));
+
+        self.add_binding(
+            Mode::Normal,
+            vec![ (KeyCode::Char('a'), KeyModifiers::NONE) ],
+            Action::SwitchMode(ModeParams::Insert {
+                mode: Mode::Insert,
+                insert_direction: InsertDirection::After,
+            }));
 
         self.add_binding(
             Mode::Normal,
@@ -140,18 +175,21 @@ impl KeybindingManager {
         self.add_binding(
             Mode::Normal,
             vec![ (KeyCode::Char(':'), KeyModifiers::NONE) ],
-            Action::SwitchMode(Mode::Command));
+            Action::SwitchMode(ModeParams::Command {
+                mode: Mode::Command, 
+                prefix: ":".to_string(),
+            }));
 
         self.add_binding(
             Mode::Normal,
             vec![ (KeyCode::Char('v'), KeyModifiers::NONE) ],
-            Action::SwitchMode(Mode::Visual));
+            Action::SwitchMode(ModeParams::Visual { mode: Mode::Visual }));
 
         // INSERT MODE
         self.add_binding(
             Mode::Insert,
             vec![ (KeyCode::Esc, KeyModifiers::NONE) ],
-            Action::SwitchMode(Mode::Normal));
+            Action::SwitchMode(ModeParams::Normal { mode: Mode::Normal, }));
 
         self.add_binding(
             Mode::Insert,
@@ -187,19 +225,28 @@ impl KeybindingManager {
         self.add_binding(
             Mode::Visual,
             vec![ (KeyCode::Esc, KeyModifiers::NONE) ],
-            Action::SwitchMode(Mode::Normal));
+            Action::SwitchMode(ModeParams::Normal { mode: Mode::Normal, }));
 
         // COMMAND MODE
         self.add_binding(
             Mode::Command,
             vec![ (KeyCode::Esc, KeyModifiers::NONE) ],
-            Action::SwitchMode(Mode::Normal));
+            Action::SwitchMode(ModeParams::Normal { mode: Mode::Normal, }));
 
         self.add_binding(
             Mode::Command,
             vec![ (KeyCode::Enter, KeyModifiers::NONE) ],
             Action::ExecuteCommand);
 
+        self.add_binding(
+            Mode::Command,
+            vec![ (KeyCode::Left, KeyModifiers::NONE) ],
+            Action::MoveCursor(-1, 0));
+
+        self.add_binding(
+            Mode::Command,
+            vec![ (KeyCode::Right, KeyModifiers::NONE) ],
+            Action::MoveCursor(1, 0));
     }
 
     /// Adds keybindings to the keybinding manager

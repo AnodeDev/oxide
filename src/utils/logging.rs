@@ -1,22 +1,33 @@
 use log::info;
 use fern::Dispatch;
 
-use anyhow;
+use crate::utils::{Error, ErrorKind};
 
-pub fn setup_logger() -> anyhow::Result<()> {
-    Dispatch::new()
-        .chain(fern::log_file("oxide.log")?)
-        .level(log::LevelFilter::Debug)
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "[{}] {}",
-                record.level(),
-                message,
-            ))
-        })
-        .apply()?;
+type Result<'a, T> = std::result::Result<T, Error<'a>>;
 
-    info!("Logger setup");
+pub fn setup_logger() -> Result<'static, ()> {
+    match fern::log_file("oxide.log") {
+        Ok(file) => {
+            match Dispatch::new()
+                .chain(file)
+                .level(log::LevelFilter::Debug)
+                .format(|out, message, record| {
+                    out.finish(format_args!(
+                        "[{}] {}",
+                        record.level(),
+                        message,
+                    ))
+                })
+                .apply() {
+                Ok(_) => {
+                    info!("Logger setup");
 
-    Ok(())
+                    Ok(())
+                },
+                Err(_) => Err(Error::new(ErrorKind::LogInitError, "Failed to initiate logging")),
+            }
+
+        },
+        Err(_) => Err(Error::new(ErrorKind::LogInitError, "Failed to open/create log file")),
+    }
 }

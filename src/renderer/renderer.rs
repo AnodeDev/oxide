@@ -5,12 +5,13 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Paragraph};
 use ratatui::style::{Color, Style};
 
-use anyhow;
-
 use std::io::Stdout;
 use std::cell::Ref;
 
 use crate::buffer::{Buffer, Cursor, Mode};
+use crate::renderer::{Error, ErrorKind};
+
+type Result<'a, T> = std::result::Result<T, Error<'a>>;
 
 /// Handles the rendering of the buffer
 pub struct Renderer {
@@ -23,21 +24,21 @@ impl Renderer {
     }
 
     /// Renders the current buffer
-    pub fn render(&mut self, buffer: Ref<Buffer>) -> anyhow::Result<()> {
+    pub fn render(&mut self, buffer: Ref<Buffer>) -> Result<'static, ()> {
         let mut lines: Vec<Line> = Vec::new();
         let mut nums: Vec<Line> = Vec::new();
-        let mut commandline_line: Line = Line::raw("");
+        let mut command_line_input: Line = Line::raw("");
         let visual_mode_on = match buffer.mode { // Checks if visual mode is on
             Mode::Visual => true,
             _ => false,
         };
 
         // Creates the buffer areas
-        self.terminal.draw(|frame| {
+        let draw_state = self.terminal.draw(|frame| {
             let vertical = Layout::vertical([
                 Constraint::Fill(1),
                 Constraint::Length(1),
-                Constraint::Length(1),
+                Constraint::Length(1 + buffer.command_line.content.len() as u16),
             ]);
             let horizontal = Layout::horizontal([
                 Constraint::Length(3),
@@ -99,15 +100,9 @@ impl Renderer {
             }
 
             if buffer.mode == Mode::Command {
-                let mut cursor = buffer.cursor.clone();
-                if cursor.x > buffer.commandline.len() {
-                    cursor.x = 1;
-                } else {
-                    cursor.x += 1;
-                }
-                commandline_line = format_line(&format!(":{}", buffer.commandline),
+                command_line_input = format_line(&format!("{}{}", buffer.command_line.prefix, buffer.command_line.input),
                                                0,
-                                               &cursor,
+                                               &buffer.command_line.cursor,
                                                false,
                                                buffer.visual_start,
                                                buffer.visual_end,
@@ -138,17 +133,25 @@ impl Renderer {
                 modeline_b,
             );
             frame.render_widget(
-                Paragraph::new(commandline_line),
+                Paragraph::new(command_line_input),
                 commandline,
             );
-        })?;
+        });
 
-        Ok(())
+        match draw_state {
+            Ok(_) => Ok(()),
+            Err(_) => {
+                Err(Error::new(ErrorKind::DrawError, "Failed to draw to screen"))
+            },
+        }
     }
 
     // Returns the terminal size
-    pub fn get_terminal_size(&self) -> std::io::Result<ratatui::layout::Size> {
-        self.terminal.size()
+    pub fn get_terminal_size(&self) -> ratatui::layout::Size {
+        match self.terminal.size() {
+            Ok(size) => size,
+            Err(_) => todo!(),
+        }
     }
 }
 
