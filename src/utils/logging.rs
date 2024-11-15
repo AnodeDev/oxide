@@ -3,7 +3,7 @@ use fern::Dispatch;
 
 use crate::utils::{Error, ErrorKind};
 
-type Result<'a, T> = std::result::Result<T, Error<'a>>;
+type Result<'a, T> = std::result::Result<T, Error>;
 
 pub fn setup_logger() -> Result<'static, ()> {
     match fern::log_file("oxide.log") {
@@ -24,10 +24,10 @@ pub fn setup_logger() -> Result<'static, ()> {
 
                     Ok(())
                 },
-                Err(_) => Err(Error::new(ErrorKind::LogInitError, "Failed to initiate logging")),
+                Err(_) => Err(Error::new(ErrorKind::LogInitError, "Failed to initiate logging".to_string())),
             }
 
         },
-        Err(_) => Err(Error::new(ErrorKind::LogInitError, "Failed to open/create log file")),
+        Err(_) => Err(Error::new(ErrorKind::LogInitError, "Failed to open/create log file".to_string())),
     }
 }

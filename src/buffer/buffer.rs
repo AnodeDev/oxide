@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::BufReader;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
@@ -9,7 +9,7 @@ use std::rc::Rc;
 use crate::keybinding::{NewLineDirection, ModeParams, InsertDirection};
 use crate::buffer::{Viewport, Error, ErrorKind};
 
-type Result<'a, T> = std::result::Result<T, Error<'a>>;
+type Result<T> = std::result::Result<T, Error>;
 
 /// Handles buffer manipulation.
 pub trait Manipulation {
@@ -18,10 +18,11 @@ pub trait Manipulation {
     fn move_cursor_to_bot(&mut self);
     fn add_char(&mut self, character: char) -> Result<()>;
     fn new_line(&mut self, direction: NewLineDirection);
-    fn remove_char(&mut self);
+    fn remove_char(&mut self) -> Result<()>;
     fn delete_line(&mut self);
 }
 
+#[derive(Clone)]
 pub enum ContentSource {
     NoSource,
     File(PathBuf),
@@ -47,6 +48,13 @@ impl fmt::Display for Mode {
     }
 }
 
+#[derive(Debug, Default, PartialEq, Eq, Hash, Clone, Copy)]
+pub enum CommandLineState {
+    #[default]
+    Default,
+    FindFile,
+}
+
 /// Stores the cursor position.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Cursor {
@@ -64,18 +72,18 @@ pub struct BufferState {
 
 /// Implements some preset buffer states for code cleanliness.
 impl BufferState {
-    fn new(killable: bool, mutable: bool) -> Self {
+    pub fn new(killable: bool, mutable: bool) -> Self {
         BufferState { killable, mutable }
     }
 
-    fn scratch() -> Self {
+    pub fn scratch() -> Self {
         BufferState {
             killable: false,
             mutable: true,
         }
     }
 
-    fn locked() -> Self {
+    pub fn locked() -> Self {
         BufferState {
             killable: false,
             mutable: false,
@@ -94,17 +102,109 @@ impl std::default::Default for BufferState {
 
 #[derive(Default)]
 pub struct CommandLineManager {
+    pub state: CommandLineState,
     pub content: Vec<String>,
     pub prefix: String,
-    pub cursor: Cursor,
     pub input: String,
+    pub suffix: String,
+    pub cursor: Cursor,
+}
+
+impl CommandLineManager {
+    async fn load_directory(&mut self) -> Result<()> {
+        let mut path = Path::new(&self.input).to_path_buf();
+
+        if !path.exists() {
+            path.pop();
+        }
+
+        self.content = Vec::new();
+
+        if path.is_dir() {
+            match fs::read_dir(path.clone()) {
+                Ok(entries) => {
+                    let content = entries
+                        .map(|res| res.map(|e| e.path()))
+                        .collect::<std::result::Result<Vec<_>, std::io::Error>>();
+
+                    match content {
+                        Ok(content) => {
+                            let mut content_filtered: Vec<&PathBuf> = content
+                                .iter()
+                                .filter(|path| path.to_string_lossy().into_owned().contains(&self.suffix))
+                                .collect();
+
+                            content_filtered.sort();
+
+                            let directories: Vec<&PathBuf> = content_filtered
+                                .iter()
+                               .filter(|entry| entry.is_dir())
+                                .map(|path| *path)
+                                .collect();
+                            let files: Vec<&PathBuf> = content_filtered
+                                .iter()
+                                .filter(|entry| entry.is_file())
+                                .map(|path| *path)
+                                .collect();
+
+                            let mut dot_count = 0;
+
+                            for dir in &directories {
+                                if let Some(name) = dir.file_name() {
+                                    let name = name.to_string_lossy().into_owned();
+                                    path.push(&name);
+
+                                    let path_str = path.to_string_lossy().into_owned();
+
+                                    if name.chars().nth(0) == Some('.') {
+                                        self.content.insert(dot_count, path_str);
+
+                                        dot_count += 1;
+                                    } else {
+                                        self.content.push(path_str);
+                                    }
+
+                                    path.pop();
+                                }
+                            }
+
+                            dot_count = directories.len();
+
+                            for file in files {
+                                if let Some(name) = file.file_name() {
+                                    let name = name.to_string_lossy().into_owned();
+                                    path.push(&name);
+
+                                    let path_str = path.to_string_lossy().into_owned();
+
+                                    if name.chars().nth(0) == Some('.') {
+                                        self.content.insert(dot_count, path_str);
+
+                                        dot_count += 1;
+                                    } else {
+                                        self.content.push(path_str);
+                                    }
+
+                                    path.pop();
+                                }
+                            }
+                        },
+                        Err(e) => return Err(Error::new(ErrorKind::ConvertToPathError, format!("{}", e))),
+                    }
+                },
+                Err(e) => return Err(Error::new(ErrorKind::ReadDirectoryError, format!("{}", e))),
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl Manipulation for CommandLineManager {
     fn move_cursor(&mut self, x: i32, y: i32) {
         // Sets the new y value.
         // Clamp is used to make sure it doesn't exceed the length of the line or 0.
-        let new_y = (self.cursor.y as i32 + y).clamp(0, self.content.len() as i32) as usize;
+        let new_y = (self.cursor.y as i32 + y).clamp(0, self.content.len() as i32 - 1) as usize;
         self.cursor.y = new_y;
 
         // Checks if cursor is moved horiozontally.
@@ -120,25 +220,81 @@ impl Manipulation for CommandLineManager {
     fn move_cursor_to_top(&mut self) {}
     fn move_cursor_to_bot(&mut self) {}
     fn add_char(&mut self, character: char) -> Result<()> {
-        self.input.insert(self.cursor.x - self.prefix.len(), character);
-        self.cursor.x += 1;
+        if self.state == CommandLineState::Default {
+            self.input.insert(self.cursor.x - self.prefix.len(), character);
+            self.cursor.x += 1;
+        } else {
+            self.suffix.insert(self.cursor.x - self.prefix.len() - self.input.len(), character);
+            self.cursor.x += 1;
+
+            if self.suffix.chars().last() == Some('/') && Path::new(&format!("{}{}", self.input, self.suffix)).exists() {
+                self.input.push_str(&self.suffix);
+
+                self.suffix = String::new();
+            }
+
+            if Path::new(&self.input).exists() {
+                let tokio_runtime = match tokio::runtime::Runtime::new() {
+                    Ok(runtime) => runtime,
+                    Err(e) => return Err(Error::new(ErrorKind::ExternError, format!("{}", e))),
+                };
+
+                match tokio_runtime.block_on(self.load_directory()) {
+                    Ok(_) => {},
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+
 
         Ok(())
     }
     fn new_line(&mut self, _: NewLineDirection) {}
-    fn remove_char(&mut self) {
-        if self.cursor.x >= 2 && self.cursor.x - 2 < self.input.len() {
-            self.input.remove(self.cursor.x - 2);
+    fn remove_char(&mut self) -> Result<()> {
+        if self.cursor.x >= self.prefix.len() + 1 && self.cursor.x - (self.prefix.len() + 1) - self.suffix.len() < self.input.len() {
+            if self.state == CommandLineState::FindFile && self.suffix.is_empty() {
+                let path = Path::new(&self.input);
 
-            self.cursor.x -= 1;
+                let mut path = path.to_path_buf();
+
+                path.pop();
+
+                let path_str = path.to_string_lossy().into_owned();
+                if path_str != "/".to_string() {
+                    self.input = format!("{}/", path_str);
+                } else {
+                    self.input = "/".to_string();
+                }
+
+
+                self.cursor.x = self.prefix.len() + self.input.len();
+            } else if self.state == CommandLineState::FindFile {
+                self.suffix.remove(self.cursor.x - (self.prefix.len() + 1) - self.input.len());
+                self.cursor.x -= 1;
+            } else  {
+                self.input.remove(self.cursor.x - (self.prefix.len() + 1));
+                self.cursor.x -= 1;
+            }
+
+            let tokio_runtime = match tokio::runtime::Runtime::new() {
+                Ok(runtime) => runtime,
+                Err(_) => todo!(),
+            };
+
+            match tokio_runtime.block_on(self.load_directory()) {
+                Ok(_) => {},
+                Err(e) => return Err(e),
+            }
         }
+
+        Ok(())
     }
     fn delete_line(&mut self) {}
 }
 
 /// Buffer holds the content from a specific source.
 pub struct Buffer {
-    pub title: &'static str,
+    pub title: String,
     pub content: Vec<String>,
     source: ContentSource,
     pub cursor: Cursor,
@@ -153,7 +309,14 @@ pub struct Buffer {
 /// Implements some preset buffers for code cleanliness.
 /// The functions returns RefCells to keep from having to clone the buffers when modifying them.
 impl Buffer {
-    pub fn new(title: &'static str, content: Vec<String>, source: ContentSource, height: usize, killable: bool, mutable: bool) -> Rc<RefCell<Self>> {
+    pub fn new(
+        title: String,
+        content: Vec<String>,
+        source: ContentSource,
+        height: usize,
+        state: BufferState,
+    ) -> Rc<RefCell<Self>>
+    {
         Rc::new(RefCell::new(Buffer {
             title,
             content,
@@ -161,7 +324,7 @@ impl Buffer {
             cursor: Cursor::default(),
             viewport: Viewport::new(height - 2),
             mode: Mode::Normal,
-            state: BufferState::new(killable, mutable),
+            state,
             command_line: CommandLineManager::default(),
             visual_start: None,
             visual_end: None,
@@ -172,7 +335,7 @@ impl Buffer {
     /// can write stuff and it won't be saved to a file.
     pub fn scratch(height: usize) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Buffer {
-            title: "*Scratch*",
+            title: "*Scratch*".to_string(),
             content: vec![
                 "This is the scratch buffer".to_string(),
                 "This buffer isn't connected to a file, so nothing in here is saved.".to_string(),
@@ -190,9 +353,10 @@ impl Buffer {
         }))
     }
 
-    pub async fn from_file(path_str: &'static str, height: usize) -> Result<'static, Rc<RefCell<Self>>> {
+    pub async fn from_file(path_str: &'static str, height: usize) -> Result<Rc<RefCell<Self>>> {
         let mut path = PathBuf::new();
         let mut content = String::new();
+
         path.push(path_str);
         match File::open(path.clone()) {
             Ok(file) => {
@@ -203,15 +367,13 @@ impl Buffer {
                 }
             },
             Err(_) => {
-                return Err(Error::new(ErrorKind::FileNotFoundError, "Was not able to open/create file"));
+                return Err(Error::new(ErrorKind::FileNotFoundError, "Was not able to open/create file".to_string()));
             },
         };
-        let mut file_name = "[NO NAME]";
+        let mut file_name = "[NO NAME]".to_string();
 
         if let Some(name_osstr) = Path::new(path_str).file_name() {
-            if let Some(name) = name_osstr.to_str() {
-                file_name = name;
-            }
+            file_name = name_osstr.to_string_lossy().into_owned();
         }
 
         Ok(Rc::new(RefCell::new(Buffer {
@@ -247,7 +409,7 @@ impl Buffer {
                         Err(_) => {},
                     }
                     Err(_) => {
-                        return Err(Error::new(ErrorKind::WriteToSourceError, "Was not able to write to source"));
+                        return Err(Error::new(ErrorKind::WriteToSourceError, "Was not able to write to source".to_string()));
                     },
                 }
 
@@ -266,7 +428,9 @@ impl Buffer {
                 self.visual_end = None;
             },
             Mode::Command => {
+                self.command_line.prefix = String::new();
                 self.command_line.input = String::new();
+                self.command_line.suffix = String::new();
                 self.command_line.content = Vec::new();
                 self.command_line.cursor = Cursor::default();
             },
@@ -280,9 +444,11 @@ impl Buffer {
 
                 self.mode = mode;
             },
-            ModeParams::Command{mode, prefix} => {
+            ModeParams::Command{mode, prefix, input, state} => {
                 self.command_line.prefix = prefix;
-                self.command_line.cursor.x = self.command_line.prefix.len();
+                self.command_line.input = format!("{}", input);
+                self.command_line.state = state;
+                self.command_line.cursor.x = self.command_line.prefix.len() + self.command_line.input.len();
                 self.command_line.cursor.y = 0;
 
                 self.mode = mode;
@@ -290,7 +456,11 @@ impl Buffer {
             ModeParams::Insert{mode, insert_direction} => {
                 match insert_direction {
                     InsertDirection::Before => {},
-                    InsertDirection::After => self.cursor.x += 1,
+                    InsertDirection::After => {
+                        if self.content[self.cursor.y].len() > self.cursor.x {
+                            self.cursor.x += 1;
+                        }
+                    },
                 }
 
                 self.mode = mode;
@@ -301,10 +471,167 @@ impl Buffer {
 
     // Returns the current command from the command line.
     pub fn get_command(&mut self) -> String {
-        self.command_line.input.clone()
+        let mut command = self.command_line.input.clone();
+        command.push_str(&self.command_line.suffix);
+
+        command
     }
 
-    pub fn find_file(&mut self) {
+    pub async fn load_file(&mut self, path: String) -> Result<()> {
+        if Path::new(&path).is_file() {
+            self.source = ContentSource::File(Path::new(&path).to_path_buf());
+
+            let mut content = String::new();
+
+            match File::open(path.clone()) {
+                Ok(file) => {
+                    let mut buf_reader = BufReader::new(&file);
+                    match buf_reader.read_to_string(&mut content) {
+                        Ok(_) => {},
+                        Err(_) => {},
+                    }
+                },
+                Err(_) => {
+                    return Err(Error::new(ErrorKind::FileNotFoundError, "Was not able to open/create file".to_string()));
+                },
+            };
+            self.title = "[NO NAME]".to_string();
+
+            if let Some(name_osstr) = Path::new(&path).file_name() {
+                self.title = name_osstr.to_string_lossy().into_owned();
+            }
+
+            self.content = content.split("\n").map(|line| line.to_string()).collect();
+
+            Ok(())
+        } else {
+            Err(Error::new(ErrorKind::FileNotFoundError, "Was not able to open/create file".to_string()))
+        }
+    }
+    
+    pub async fn find_file(&mut self) -> Result<()> {
+        let mut path = match &mut self.source.clone() {
+            ContentSource::NoSource => {
+                let mut path = PathBuf::new();
+
+                path.push("~/");
+
+                path
+            },
+            ContentSource::File(path) => {
+                path.pop();
+
+                path.clone()
+            },
+        };
+
+        if path.is_dir() {
+            match fs::read_dir(path.clone()) {
+                Ok(entries) => {
+                    let content = entries
+                        .map(|res| res.map(|e| e.path()))
+                        .collect::<std::result::Result<Vec<_>, std::io::Error>>();
+
+                    match content {
+                        Ok(content) => {
+                            let mut content_filtered: Vec<&PathBuf> = content
+                                .iter()
+                                .filter(|path| path.to_string_lossy().into_owned().contains(&self.command_line.input))
+                                .collect();
+
+                            content_filtered.sort();
+
+                            let directories: Vec<&PathBuf> = content_filtered
+                                .iter()
+                               .filter(|entry| entry.is_dir())
+                                .map(|path| *path)
+                                .collect();
+                            let files: Vec<&PathBuf> = content_filtered
+                                .iter()
+                                .filter(|entry| entry.is_file())
+                                .map(|path| *path)
+                                .collect();
+
+                            let mut dot_count = 0;
+
+                            for dir in &directories {
+                                if let Some(name) = dir.file_name() {
+                                    let name = name.to_string_lossy().into_owned();
+                                    path.push(&name);
+
+                                    let path_str = path.to_string_lossy().into_owned();
+
+                                    if name.chars().nth(0) == Some('.') {
+                                        self.command_line.content.insert(dot_count, path_str);
+
+                                        dot_count += 1;
+                                    } else {
+                                        self.command_line.content.push(path_str);
+                                    }
+
+                                    path.pop();
+                                }
+                            }
+
+                            dot_count = directories.len();
+
+                            for file in files {
+                                if let Some(name) = file.file_name() {
+                                    let name = name.to_string_lossy().into_owned();
+                                    path.push(&name);
+
+                                    let path_str = path.to_string_lossy().into_owned();
+
+                                    if name.chars().nth(0) == Some('.') {
+                                        self.command_line.content.insert(dot_count, path_str);
+
+                                        dot_count += 1;
+                                    } else {
+                                        self.command_line.content.push(path_str);
+                                    }
+
+                                    path.pop();
+                                }
+                            }
+
+                            self.switch_mode(ModeParams::Command{
+                                mode: Mode::Command,
+                                prefix: "Find File ".to_string(),
+                                input: format!("{}/", path.to_string_lossy().into_owned()),
+                                state: CommandLineState::FindFile,
+                            });
+                        },
+                        Err(e) => return Err(Error::new(ErrorKind::ConvertToPathError, format!("{}", e))),
+                    }
+                },
+                Err(e) => return Err(Error::new(ErrorKind::ReadDirectoryError, format!("{}", e))),
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn append_selected(&mut self) -> Result<()> {
+        if self.mode != Mode::Command {
+            return Err(Error::new(ErrorKind::WrongModeError, "Should be in Command mode".to_string()));
+        } else {
+            let content = &self.command_line.content[self.command_line.cursor.y];
+
+            if Path::new(content).exists() {
+                if let Some(file_name) = Path::new(content).file_name() {
+                    self.command_line.suffix = file_name.to_string_lossy().into_owned();
+                }
+            } else {
+                self.command_line.input = content.to_string();
+            }
+
+            self.command_line.cursor.x = 
+                self.command_line.prefix.len() +
+                self.command_line.input.len() +
+                self.command_line.suffix.len();
+
+            Ok(())
+        }
     }
 }
 
@@ -377,7 +704,7 @@ impl Manipulation for Buffer {
                 };
             },
             // If user is in normal- or visual mode, something is wrong.
-            Mode::Normal | Mode::Visual => return Err(Error::new(ErrorKind::WrongModeError, "Expected Insert or Command, found {}")),
+            Mode::Normal | Mode::Visual => return Err(Error::new(ErrorKind::WrongModeError, "Expected Insert or Command, found".to_string())),
         };
 
         Ok(())
@@ -412,7 +739,7 @@ impl Manipulation for Buffer {
     }
 
     /// Implements the remove character logic for all modes.
-    fn remove_char(&mut self) {
+    fn remove_char(&mut self) -> Result<()>  {
         match self.mode {
             Mode::Insert => {
                 if self.cursor.x > 0 {
@@ -434,7 +761,10 @@ impl Manipulation for Buffer {
                 }
             },
             Mode::Command => {
-                self.command_line.remove_char();
+                match self.command_line.remove_char() {
+                    Ok(_) => {},
+                    Err(e) => return Err(e),
+                }
             },
             // Removes the selected characters.
             Mode::Visual => {
@@ -508,10 +838,13 @@ impl Manipulation for Buffer {
                     self.cursor.y = top.y;
                     self.switch_mode(ModeParams::Normal { mode: Mode::Normal });
                 } else {
-                    todo!("Throw error, visual mode wasn't properly initialized")
+                    return Err(Error::new(ErrorKind::VisualModeInitError, "Visual mode was not setup correctly".to_string()));
                 }
+
             }
-        };
+        }
+
+        Ok(())
     }
 
     // Deletes the current line.
@@ -525,5 +858,7 @@ impl Manipulation for Buffer {
         } else {
             self.content[self.cursor.y] = String::new();
         }
+
+        self.cursor.x = 0;
     }
 }

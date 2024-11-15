@@ -2,7 +2,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use std::collections::HashMap;
 
-use crate::buffer::Mode;
+use crate::buffer::{CommandLineState, Mode};
 
 /// Defines all the available actions
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -19,7 +19,9 @@ pub enum Action {
     Quit,
     WriteBuffer,
     ExecuteCommand,
+    OpenFile(String),
     FindFile,
+    AppendSelected,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -36,7 +38,9 @@ pub enum ModeParams {
     },
     Command {
         mode: Mode,
-        prefix: String
+        prefix: String,
+        input: String,
+        state: CommandLineState,
     },
 }
 
@@ -178,6 +182,8 @@ impl KeybindingManager {
             Action::SwitchMode(ModeParams::Command {
                 mode: Mode::Command, 
                 prefix: ":".to_string(),
+                input: String::new(),
+                state: CommandLineState::Default,
             }));
 
         self.add_binding(
@@ -247,6 +253,21 @@ impl KeybindingManager {
             Mode::Command,
             vec![ (KeyCode::Right, KeyModifiers::NONE) ],
             Action::MoveCursor(1, 0));
+
+        self.add_binding(
+            Mode::Command,
+            vec![ (KeyCode::Up, KeyModifiers::NONE) ],
+            Action::MoveCursor(0, -1));
+
+        self.add_binding(
+            Mode::Command,
+            vec![ (KeyCode::Down, KeyModifiers::NONE) ],
+            Action::MoveCursor(0, 1));
+
+        self.add_binding(
+            Mode::Command,
+            vec![ (KeyCode::Tab, KeyModifiers::NONE) ],
+            Action::AppendSelected);
     }
 
     /// Adds keybindings to the keybinding manager
@@ -348,13 +369,20 @@ impl KeybindingManager {
 }
 
 impl CommandParser {
-    pub fn parse(input: String) -> Vec<Action> {
-        input.chars()
-            .map(|c| match c {
-                'w' => Action::WriteBuffer,
-                'q' => Action::Quit,
-                _   => Action::Nop,
-            })
-            .collect()
+    pub fn parse(input: String, state: CommandLineState) -> Vec<Action> {
+        match state {
+            CommandLineState::Default => {
+                input.chars()
+                    .map(|c| match c {
+                        'w' => Action::WriteBuffer,
+                        'q' => Action::Quit,
+                        _   => Action::Nop,
+                    })
+                    .collect()
+            },
+            CommandLineState::FindFile => {
+                vec![ Action::OpenFile(input) ]
+            },
+        }
     }
 }

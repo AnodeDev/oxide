@@ -4,15 +4,16 @@ use std::cell::RefCell;
 
 use oxide::editor::Editor;
 use oxide::keybinding::KeybindingManager;
-use oxide::buffer::{Buffer, ContentSource};
+use oxide::buffer::{Buffer, BufferState, ContentSource};
 use oxide::utils::logging::setup_logger;
+use oxide::OxideError;
 
-type Result<'a, T> = std::result::Result<T, oxide::Error<'a>>;
+type Result<T> = std::result::Result<T, oxide::OxideError>;
 
-fn main() -> Result<'static, ()> {
+fn main() -> Result<()> {
     match setup_logger() {
         Ok(_) => {},
-        Err(_) => {},
+        Err(e) => return Err(oxide::OxideError::new(oxide::ErrorKind::UtilsError(e))),
     };
 
     // Initializes core components
@@ -20,7 +21,7 @@ fn main() -> Result<'static, ()> {
     let editor = RefCell::new(Editor::new(terminal));
     let tokio_runtime = match tokio::runtime::Runtime::new() {
         Ok(runtime) => runtime,
-        Err(_) => todo!(),
+        Err(e) => return Err(OxideError::new(oxide::ErrorKind::ExternError(e))),
     };
     let keybinding_manager = RefCell::new(KeybindingManager::new());
     let terminal_height = editor.borrow().renderer.get_terminal_size().height as usize;
@@ -29,10 +30,10 @@ fn main() -> Result<'static, ()> {
     let file_path   = "/home/dexter/Personal/Programming/Rust/oxide/test.txt";
     let file_buffer = match tokio_runtime.block_on(Buffer::from_file(file_path, terminal_height)) {
         Ok(buffer) => buffer,
-        Err(error) => {
-            eprintln!("ERROR: {}", error);
+        Err(e) => {
+            eprintln!("ERROR: {}", e);
 
-            return Err(oxide::Error::BufferError(error));
+            return Err(oxide::OxideError::new(oxide::ErrorKind::BufferError(e)));
         }
     };
     editor.borrow_mut().add_buffer(file_buffer);
@@ -45,12 +46,13 @@ fn main() -> Result<'static, ()> {
         .map(|buffer| buffer.borrow().title.to_string())
         .collect();
     buffer_names.push("*Buffers*".to_string());
-    let buffers_buffer = Buffer::new("*Buffers*",
-                                     buffer_names,
-                                     ContentSource::NoSource,
-                                     terminal_height,
-                                     false,
-                                     false);
+    let buffers_buffer = Buffer::new(
+        "*Buffers*".to_string(),
+        buffer_names,
+        ContentSource::NoSource,
+        terminal_height,
+        BufferState::locked(),
+    );
 
     editor.borrow_mut().add_buffer(buffers_buffer);
     editor.borrow_mut().active_buffer = 1;
@@ -60,7 +62,7 @@ fn main() -> Result<'static, ()> {
         // Renders the buffer and makes sure the keybinding manager has the correct mode set
         match editor.borrow_mut().render() {
             Ok(_) => {},
-            Err(_) => {},
+            Err(e) => return Err(e),
         };
         keybinding_manager
             .borrow_mut()
@@ -77,7 +79,7 @@ fn main() -> Result<'static, ()> {
                     if let Some(action) = input_result {
                         match editor.borrow_mut().parse_action(action, &keybinding_manager, &tokio_runtime) {
                             Ok(_) => {},
-                            Err(_) => {},
+                            Err(e) => return Err(e),
                         }
                     }
                 },

@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum ErrorKind {
     DrawError,
 }
@@ -13,7 +13,7 @@ impl fmt::Display for ErrorKind {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Error<'a> {
     kind: ErrorKind,
     msg: &'a str,

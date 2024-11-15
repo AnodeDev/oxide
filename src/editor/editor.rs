@@ -8,8 +8,9 @@ use std::io::Stdout;
 use crate::buffer::{Buffer, Manipulation, Mode};
 use crate::renderer::Renderer;
 use crate::keybinding::{Action, CommandParser, KeybindingManager, ModeParams};
+use crate::OxideError;
 
-type Result<'a, T> = std::result::Result<T, crate::Error<'a>>;
+type Result<T> = std::result::Result<T, crate::OxideError>;
 
 /// Holds all the editor states
 pub struct Editor {
@@ -67,39 +68,74 @@ impl Editor {
                     Ok(_) => {},
                     Err(e) => {
                         eprintln!("ERROR: {}", e);
+
+                        return Err(OxideError::new(crate::ErrorKind::BufferError(e)));
                     },
                 }
             },
             Action::NewLine(direction)       => self.get_active_buffer_mut().new_line(direction),
-            Action::DeleteChar               => self.get_active_buffer_mut().remove_char(),
             Action::DeleteLine               => self.get_active_buffer_mut().delete_line(),
             Action::MoveCursor(x, y)         => self.get_active_buffer_mut().move_cursor(x, y),
             Action::TopOfBuffer              => self.get_active_buffer_mut().move_cursor_to_top(),
             Action::EndOfBuffer              => self.get_active_buffer_mut().move_cursor_to_bot(),
             Action::Quit                     => self.is_running = false,
+            Action::DeleteChar               => {
+                match self.get_active_buffer_mut().remove_char() {
+                    Ok(_) => {},
+                    Err(e) => {
+                        eprintln!("ERROR: {}", e);
+
+                        return Err(OxideError::new(crate::ErrorKind::BufferError(e)));
+                    },
+                }
+            },
             Action::WriteBuffer              => {
                 match tokio_runtime.block_on(self.get_active_buffer_mut().write_buffer()) {
                     Ok(_) => {},
-                    Err(_) => {},
+                    Err(e) => {
+                        eprintln!("ERROR: {}", e);
+
+                        return Err(OxideError::new(crate::ErrorKind::BufferError(e)));
+                    },
                 }
             },
             Action::ExecuteCommand => {
                 let input: String = self.get_active_buffer_mut().get_command();
-                let commands = CommandParser::parse(input);
+                let state = self.get_active_buffer().command_line.state;
+                let commands = CommandParser::parse(input, state);
 
                 for command in commands {
                     match self.parse_action(command, keybinding_manager, tokio_runtime) {
                         Ok(_) => {},
                         Err(e) => {
-                            eprintln!("ERROR: {}", e);
+                            return Err(e);
                         },
                     };
                 }
 
                 self.get_active_buffer_mut().switch_mode(ModeParams::Normal { mode: Mode::Normal });
             },
+            Action::OpenFile(path) => {
+                match tokio_runtime.block_on(self.get_active_buffer_mut().load_file(path)) {
+                    Ok(_) => {},
+                    Err(e) => {
+                        eprintln!("ERROR: {}", e);
+                    },
+                }
+            },
             Action::FindFile => {
-                todo!("Implement Find File functionality")
+                match tokio_runtime.block_on(self.get_active_buffer_mut().find_file()) {
+                    Ok(_) => {},
+                    Err(e) => {
+                        eprintln!("ERROR: {}", e);
+                    },
+                };
+            },
+            Action::AppendSelected => {
+                match self.get_active_buffer_mut().append_selected() {
+                    Ok(_) => {},
+                    Err(e) => return Err(OxideError::new(crate::ErrorKind::BufferError(e))),
+                }
             },
             _ => {},
         };

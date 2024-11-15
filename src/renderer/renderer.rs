@@ -7,8 +7,9 @@ use ratatui::style::{Color, Style};
 
 use std::io::Stdout;
 use std::cell::Ref;
+use std::path::Path;
 
-use crate::buffer::{Buffer, Cursor, Mode};
+use crate::buffer::{Buffer, CommandLineState, Cursor, Mode};
 use crate::renderer::{Error, ErrorKind};
 
 type Result<'a, T> = std::result::Result<T, Error<'a>>;
@@ -27,7 +28,7 @@ impl Renderer {
     pub fn render(&mut self, buffer: Ref<Buffer>) -> Result<'static, ()> {
         let mut lines: Vec<Line> = Vec::new();
         let mut nums: Vec<Line> = Vec::new();
-        let mut command_line_input: Line = Line::raw("");
+        let mut formatted_cmd_content: Vec<Line> = Vec::new();
         let visual_mode_on = match buffer.mode { // Checks if visual mode is on
             Mode::Visual => true,
             _ => false,
@@ -35,11 +36,19 @@ impl Renderer {
 
         // Creates the buffer areas
         let draw_state = self.terminal.draw(|frame| {
-            let vertical = Layout::vertical([
-                Constraint::Fill(1),
-                Constraint::Length(1),
-                Constraint::Length(1 + buffer.command_line.content.len() as u16),
-            ]);
+            let vertical = if buffer.mode == Mode::Command {
+                Layout::vertical([
+                    Constraint::Fill(1),
+                    Constraint::Length(1),
+                    Constraint::Length(1 + buffer.command_line.content.len() as u16),
+                ])
+            } else {
+                Layout::vertical([
+                    Constraint::Fill(1),
+                    Constraint::Length(1),
+                    Constraint::Length(1),
+                ])
+            };
             let horizontal = Layout::horizontal([
                 Constraint::Length(3),
                 Constraint::Length(1),
@@ -71,42 +80,80 @@ impl Renderer {
             {
                 // Checks if the current line is the one with the cursor
                 if buffer.cursor.y == num && buffer.mode != Mode::Command {
-                    lines.push(format_line(line,
-                                           num,
-                                           &buffer.cursor,
-                                           visual_mode_on,
-                                           buffer.visual_start,
-                                           buffer.visual_end,
-                                           true));
+                    lines.push(format_line(
+                        line,
+                        num,
+                        &buffer.cursor,
+                        visual_mode_on,
+                        buffer.visual_start,
+                        buffer.visual_end,
+                        true));
                 } else {
-                    lines.push(format_line(line,
-                                           num,
-                                           &buffer.cursor,
-                                           visual_mode_on,
-                                           buffer.visual_start,
-                                           buffer.visual_end,
-                                           false));
+                    lines.push(format_line(
+                        line,
+                        num,
+                        &buffer.cursor,
+                        visual_mode_on,
+                        buffer.visual_start,
+                        buffer.visual_end,
+                        false));
                 }
 
                 // Adds the line numbers and pushes them to the right
-                nums.push(format_line(&format!("{:>3}", num + 1),
-                                      num,
-                                      &buffer.cursor,
-                                      false,
-                                      buffer.visual_start,
-                                      buffer.visual_end,
-                                      false)
-                        .style(Style::default().fg(Color::DarkGray)));
+                nums.push(format_line(
+                    &format!("{:>3}", num + 1),
+                    num,
+                    &buffer.cursor,
+                    false,
+                    buffer.visual_start,
+                    buffer.visual_end,
+                    false)
+                    .style(Style::default().fg(Color::DarkGray)));
             }
 
             if buffer.mode == Mode::Command {
-                command_line_input = format_line(&format!("{}{}", buffer.command_line.prefix, buffer.command_line.input),
-                                               0,
-                                               &buffer.command_line.cursor,
-                                               false,
-                                               buffer.visual_start,
-                                               buffer.visual_end,
-                                               true);
+                let content: &Vec<String> = match buffer.command_line.state {
+                    CommandLineState::Default => {
+                        &buffer.command_line.content
+                    },
+                    CommandLineState::FindFile => {
+                        let mut content = Vec::new();
+
+                        for path in &buffer.command_line.content {
+                            let suffix = if Path::new(path).is_dir() {
+                                "/"
+                            } else {
+                                ""
+                            };
+
+                            if let Some(file_name) = Path::new(path).file_name() {
+                                content.push(format!("{}{}", file_name.to_string_lossy().into_owned(), suffix));
+                            }
+                        }
+
+                        &content.clone()
+                    },
+                };
+
+                formatted_cmd_content = format_cmd_content(
+                    content,
+                    &buffer.command_line.cursor,
+                );
+
+                formatted_cmd_content.push(format_line(
+                    &format!(
+                        "{}{}{}",
+                        buffer.command_line.prefix,
+                        buffer.command_line.input,
+                        buffer.command_line.suffix,
+                    ),
+                    0,
+                    &buffer.command_line.cursor,
+                    false,
+                    None,
+                    None,
+                    true
+                ));
             }
 
             // Renders the buffer
@@ -133,7 +180,7 @@ impl Renderer {
                 modeline_b,
             );
             frame.render_widget(
-                Paragraph::new(command_line_input),
+                Paragraph::new(formatted_cmd_content),
                 commandline,
             );
         });
@@ -157,13 +204,15 @@ impl Renderer {
 
 /// Formats the line
 /// TODO: Reduce the amount of parameters, or take only the necessary parts of the parameters
-fn format_line(line: &str,
-               line_num: usize,
-               cursor: &Cursor,
-               visual_mode_on: bool,
-               visual_start_opt: Option<Cursor>,
-               visual_end_opt: Option<Cursor>,
-               cursor_line: bool) -> Line<'static>
+fn format_line(
+    line: &str,
+    line_num: usize,
+    cursor: &Cursor,
+    visual_mode_on: bool,
+    visual_start_opt: Option<Cursor>,
+    visual_end_opt: Option<Cursor>,
+    cursor_line: bool
+) -> Line<'static>
 {
     let mut spans: Vec<Span> = Vec::new();
     let cursor_style = Style::new().fg(Color::Black).bg(Color::Yellow);
@@ -193,6 +242,27 @@ fn format_line(line: &str,
     }
 
     Line::from(spans)
+}
+
+fn format_cmd_content(
+    content: &Vec<String>,
+    cursor: &Cursor,
+) -> Vec<Line<'static>>
+{
+    let mut lines: Vec<Line> = Vec::new();
+    let cursor_style = Style::new().fg(Color::Black).bg(Color::Yellow);
+
+    for (num, line) in content.iter().enumerate() {
+        let line = Line::from(line.to_string());
+
+        if num == cursor.y {
+            lines.push(line.style(cursor_style));
+        } else {
+            lines.push(line);
+        }
+    }
+
+    lines
 }
 
 /// Checks if the current character position is highlighted
