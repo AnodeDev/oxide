@@ -229,8 +229,8 @@ impl Manipulation for CommandLineManager {
 
             if self.suffix.chars().last() == Some('/') && Path::new(&format!("{}{}", self.input, self.suffix)).exists() {
                 self.input.push_str(&self.suffix);
-
                 self.suffix = String::new();
+                self.cursor.y = 0;
             }
 
             if Path::new(&self.input).exists() {
@@ -268,6 +268,7 @@ impl Manipulation for CommandLineManager {
 
 
                 self.cursor.x = self.prefix.len() + self.input.len();
+                self.cursor.y = 0;
             } else if self.state == CommandLineState::FindFile {
                 self.suffix.remove(self.cursor.x - (self.prefix.len() + 1) - self.input.len());
                 self.cursor.x -= 1;
