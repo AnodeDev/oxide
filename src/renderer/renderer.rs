@@ -113,7 +113,7 @@ impl Renderer {
 
             if buffer.mode == Mode::Command {
                 let content: &Vec<String> = match buffer.command_line.state {
-                    CommandLineState::Default => {
+                    CommandLineState::Default | CommandLineState::Error => {
                         &buffer.command_line.content
                     },
                     CommandLineState::FindFile => {
@@ -154,6 +154,8 @@ impl Renderer {
                     None,
                     true
                 ));
+            } else if buffer.command_line.state == CommandLineState::Error {
+                formatted_cmd_content.push(format_error(buffer.command_line.prefix.clone()));
             }
 
             // Renders the buffer
@@ -242,6 +244,12 @@ fn format_line(
     }
 
     Line::from(spans)
+}
+
+fn format_error(line: String) -> Line<'static> {
+    let style = Style::new().fg(Color::Red);
+
+    Line::styled(line, style)
 }
 
 fn format_cmd_content(

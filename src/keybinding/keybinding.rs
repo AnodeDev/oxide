@@ -383,6 +383,9 @@ impl CommandParser {
             CommandLineState::FindFile => {
                 vec![ Action::OpenFile(input) ]
             },
+            _ => {
+                vec![ ]
+            },
         }
     }
 }

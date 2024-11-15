@@ -34,9 +34,9 @@ impl OxideError {
 impl fmt::Display for OxideError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
-            ErrorKind::BufferError(e) => write!(f, "KIND: {}, MESSAGE: {}", self.kind, format!("{}", e)),
-            ErrorKind::UtilsError(e)  => write!(f, "KIND: {}, MESSAGE: {}", self.kind, format!("{}", e)),
-            ErrorKind::ExternError(e) => write!(f, "KIND: {}, MESSAGE: {}", self.kind, format!("{}", e)),
+            ErrorKind::BufferError(e) => write!(f, "{}", format!("{}", e)),
+            ErrorKind::UtilsError(e)  => write!(f, "{}", format!("{}", e)),
+            ErrorKind::ExternError(e) => write!(f, "{}", format!("{}", e)),
         }
     }
 }

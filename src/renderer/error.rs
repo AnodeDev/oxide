@@ -27,6 +27,6 @@ impl<'a> Error<'a> {
 
 impl<'a> fmt::Display for Error<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Kind: {}, Message: {}", self.kind, self.msg)
+        write!(f, "{}: {}", self.kind, self.msg)
     }
 }

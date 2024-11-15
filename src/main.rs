@@ -3,8 +3,8 @@ use ratatui::crossterm::event::{self, Event};
 use std::cell::RefCell;
 
 use oxide::editor::Editor;
-use oxide::keybinding::KeybindingManager;
-use oxide::buffer::{Buffer, BufferState, ContentSource};
+use oxide::keybinding::{KeybindingManager, ModeParams};
+use oxide::buffer::{Buffer, Mode};
 use oxide::utils::logging::setup_logger;
 use oxide::OxideError;
 
@@ -38,23 +38,6 @@ fn main() -> Result<()> {
     };
     editor.borrow_mut().add_buffer(file_buffer);
 
-    // A buffer that lists the currently open buffers
-    let mut buffer_names: Vec<String> = editor
-        .borrow()
-        .buffers
-        .iter()
-        .map(|buffer| buffer.borrow().title.to_string())
-        .collect();
-    buffer_names.push("*Buffers*".to_string());
-    let buffers_buffer = Buffer::new(
-        "*Buffers*".to_string(),
-        buffer_names,
-        ContentSource::NoSource,
-        terminal_height,
-        BufferState::locked(),
-    );
-
-    editor.borrow_mut().add_buffer(buffers_buffer);
     editor.borrow_mut().active_buffer = 1;
 
     // Main loop
@@ -77,9 +60,14 @@ fn main() -> Result<()> {
                         .handle_input(key_event);
 
                     if let Some(action) = input_result {
-                        match editor.borrow_mut().parse_action(action, &keybinding_manager, &tokio_runtime) {
+                        let mut editor = editor.borrow_mut();
+
+                        match editor.parse_action(action, &keybinding_manager, &tokio_runtime) {
                             Ok(_) => {},
-                            Err(e) => return Err(e),
+                            Err(e) => {
+                                editor.get_active_buffer_mut().switch_mode(ModeParams::Normal{ mode: Mode::Normal });
+                                editor.get_active_buffer_mut().command_line.display_error(e.to_string());
+                            },
                         }
                     }
                 },
