@@ -113,9 +113,6 @@ impl Renderer {
 
             if buffer.mode == Mode::Command {
                 let content: &Vec<String> = match buffer.command_line.state {
-                    CommandLineState::Default | CommandLineState::Error => {
-                        &buffer.command_line.content
-                    },
                     CommandLineState::FindFile => {
                         let mut content = Vec::new();
 
@@ -132,6 +129,9 @@ impl Renderer {
                         }
 
                         &content.clone()
+                    },
+                    _ => {
+                        &buffer.command_line.content
                     },
                 };
 

@@ -320,6 +320,7 @@ impl Buffer {
 
                 path.clone()
             },
+            _ => return Err(Error::new(ErrorKind::InvalidSourceError, "Cannot open file from this buffer".to_string())),
         };
 
         if path.is_dir() {
@@ -429,6 +430,17 @@ impl Buffer {
 
             Ok(())
         }
+    }
+
+    pub fn switch_buffer(&mut self, content: Vec<String>) {
+        self.switch_mode(ModeParams::Command{
+            mode: Mode::Command,
+            prefix: "Switch Buffer ".to_string(),
+            input: String::new(),
+            state: CommandLineState::SwitchBuffer,
+        });
+
+        self.command_line.content = content;
     }
 }
 

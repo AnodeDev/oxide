@@ -5,7 +5,7 @@ use std::cell::{Ref, RefMut, RefCell};
 use std::rc::Rc;
 use std::io::Stdout;
 
-use crate::buffer::{Buffer, Manipulation, Mode};
+use crate::buffer::{Buffer, Manipulation, Mode, CommandLineState};
 use crate::renderer::Renderer;
 use crate::keybinding::{Action, CommandParser, KeybindingManager, ModeParams};
 use crate::OxideError;
@@ -57,6 +57,12 @@ impl Editor {
         };
 
         Ok(())
+    }
+
+    fn switch_buffer(&mut self) {
+        let cmd_content = self.buffers.iter().map(|buffer| buffer.borrow().title.clone()).collect();
+
+        self.get_active_buffer_mut().switch_buffer(cmd_content);
     }
 
     /// Parses the keybinding and executes the corresponding action
@@ -112,6 +118,14 @@ impl Editor {
                     Ok(_) => {},
                     Err(e) => return Err(OxideError::new(crate::ErrorKind::BufferError(e))),
                 };
+            },
+            Action::InitSwitchBuffer => {
+                self.switch_buffer();
+            },
+            Action::SwitchBuffer(buffer) => {
+                if let Some(index) = self.buffers.iter().position(|b| b.borrow().title == buffer) {
+                    self.active_buffer = index;
+                }
             },
             Action::AppendSelected => {
                 match self.get_active_buffer_mut().append_selected() {

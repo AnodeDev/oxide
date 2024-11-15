@@ -1,8 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::fs;
 
-use crate::buffer::{Cursor, Manipulation, Error, ErrorKind};
-use crate::keybinding::NewLineDirection;
+use crate::buffer::{Cursor, Error, ErrorKind};
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -11,6 +10,7 @@ pub enum CommandLineState {
     #[default]
     Default,
     FindFile,
+    SwitchBuffer,
     Error,
 }
 
@@ -130,10 +130,8 @@ impl CommandLineManager {
 
         log::info!("COMMAND LINE: {}", self.prefix);
     }
-}
 
-impl Manipulation for CommandLineManager {
-    fn move_cursor(&mut self, x: i32, y: i32) {
+    pub fn move_cursor(&mut self, x: i32, y: i32) {
         // Sets the new y value.
         // Clamp is used to make sure it doesn't exceed the length of the line or 0.
         let new_y = (self.cursor.y as i32 + y).clamp(0, self.content.len() as i32 - 1) as usize;
@@ -149,13 +147,15 @@ impl Manipulation for CommandLineManager {
             self.cursor.desired_x = new_x;
         }
     }
-    fn move_cursor_to_top(&mut self) {}
-    fn move_cursor_to_bot(&mut self) {}
-    fn add_char(&mut self, character: char) -> Result<()> {
+    pub fn add_char(&mut self, character: char) -> Result<()> {
         if self.state == CommandLineState::Default {
             self.input.insert(self.cursor.x - self.prefix.len(), character);
             self.cursor.x += 1;
-        } else {
+        } else if self.state == CommandLineState::SwitchBuffer {
+            self.suffix.insert(self.cursor.x - self.prefix.len() - self.input.len(), character);
+            self.cursor.x += 1;
+
+        } else if self.state == CommandLineState::FindFile {
             self.suffix.insert(self.cursor.x - self.prefix.len() - self.input.len(), character);
             self.cursor.x += 1;
 
@@ -176,11 +176,9 @@ impl Manipulation for CommandLineManager {
             }
         }
 
-
         Ok(())
     }
-    fn new_line(&mut self, _: NewLineDirection) {}
-    fn remove_char(&mut self) -> Result<()> {
+    pub fn remove_char(&mut self) -> Result<()> {
         if self.cursor.x >= self.prefix.len() + 1 && self.cursor.x - (self.prefix.len() + 1) - self.suffix.len() < self.input.len() {
             if self.state == CommandLineState::FindFile && self.suffix.is_empty() {
                 let path = Path::new(&self.input);
@@ -220,5 +218,4 @@ impl Manipulation for CommandLineManager {
 
         Ok(())
     }
-    fn delete_line(&mut self) {}
 }

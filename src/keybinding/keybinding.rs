@@ -21,6 +21,8 @@ pub enum Action {
     ExecuteCommand,
     OpenFile(String),
     FindFile,
+    InitSwitchBuffer,
+    SwitchBuffer(String),
     AppendSelected,
 }
 
@@ -165,6 +167,15 @@ impl KeybindingManager {
                 (KeyCode::Char('f'), KeyModifiers::NONE)
             ],
             Action::FindFile);
+
+        self.add_binding(
+            Mode::Normal,
+            vec![
+                (KeyCode::Char(' '), KeyModifiers::NONE),
+                (KeyCode::Char('b'), KeyModifiers::NONE),
+                (KeyCode::Char('s'), KeyModifiers::NONE)
+            ],
+            Action::InitSwitchBuffer);
 
         self.add_binding(
             Mode::Normal,
@@ -380,12 +391,9 @@ impl CommandParser {
                     })
                     .collect()
             },
-            CommandLineState::FindFile => {
-                vec![ Action::OpenFile(input) ]
-            },
-            _ => {
-                vec![ ]
-            },
+            CommandLineState::FindFile     => vec![ Action::OpenFile(input) ],
+            CommandLineState::SwitchBuffer => vec![ Action::SwitchBuffer(input) ],
+            _ => vec![ ],
         }
     }
 }
