@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::fs;
 
-use crate::buffer::{Cursor, Error, ErrorKind};
+use crate::buffer::{Cursor, Error};
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -103,10 +103,10 @@ impl CommandLineManager {
                                 }
                             }
                         },
-                        Err(e) => return Err(Error::new(ErrorKind::ConvertToPathError, format!("{}", e))),
+                        Err(e) => return Err(Error::IoError(e)),
                     }
                 },
-                Err(e) => return Err(Error::new(ErrorKind::ReadDirectoryError, format!("{}", e))),
+                Err(e) => return Err(Error::IoError(e)),
             }
         }
 
@@ -165,15 +165,9 @@ impl CommandLineManager {
                 self.cursor.y = 0;
             }
 
-            let tokio_runtime = match tokio::runtime::Runtime::new() {
-                Ok(runtime) => runtime,
-                Err(e) => return Err(Error::new(ErrorKind::ExternError, format!("{}", e))),
-            };
+            let tokio_runtime = tokio::runtime::Runtime::new()?;
 
-            match tokio_runtime.block_on(self.load_directory()) {
-                Ok(_) => {},
-                Err(e) => return Err(e),
-            }
+            tokio_runtime.block_on(self.load_directory())?;
         }
 
         Ok(())
@@ -205,15 +199,9 @@ impl CommandLineManager {
                 self.cursor.x -= 1;
             }
 
-            let tokio_runtime = match tokio::runtime::Runtime::new() {
-                Ok(runtime) => runtime,
-                Err(_) => todo!(),
-            };
+            let tokio_runtime = tokio::runtime::Runtime::new()?;
 
-            match tokio_runtime.block_on(self.load_directory()) {
-                Ok(_) => {},
-                Err(e) => return Err(e),
-            }
+            tokio_runtime.block_on(self.load_directory())?;
         }
 
         Ok(())

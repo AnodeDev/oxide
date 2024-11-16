@@ -1,41 +1,25 @@
 use ratatui::crossterm::event::{self, Event};
 
-use std::cell::RefCell;
-
 use oxide::editor::Editor;
 use oxide::keybinding::{KeybindingManager, ModeParams};
 use oxide::buffer::{Buffer, Mode};
 use oxide::utils::logging::setup_logger;
-use oxide::OxideError;
 
 type Result<T> = std::result::Result<T, oxide::OxideError>;
 
 fn main() -> Result<()> {
-    match setup_logger() {
-        Ok(_) => {},
-        Err(e) => return Err(oxide::OxideError::new(oxide::ErrorKind::UtilsError(e))),
-    };
+    setup_logger()?;
 
     // Initializes core components
     let terminal = ratatui::init();
     let mut editor = Editor::new(terminal);
-    let tokio_runtime = match tokio::runtime::Runtime::new() {
-        Ok(runtime) => runtime,
-        Err(e) => return Err(OxideError::new(oxide::ErrorKind::ExternError(e))),
-    };
+    let tokio_runtime = tokio::runtime::Runtime::new()?;
     let mut keybinding_manager = KeybindingManager::new();
     let terminal_height = editor.renderer.get_terminal_size().height as usize;
 
     // Test file (change to the directory of your choice)
     let file_path   = "/home/dexter/Personal/Programming/Rust/oxide/test.txt";
-    let file_buffer = match tokio_runtime.block_on(Buffer::from_file(file_path, terminal_height)) {
-        Ok(buffer) => buffer,
-        Err(e) => {
-            eprintln!("ERROR: {}", e);
-
-            return Err(oxide::OxideError::new(oxide::ErrorKind::BufferError(e)));
-        }
-    };
+    let file_buffer = tokio_runtime.block_on(Buffer::from_file(file_path, terminal_height))?;
     editor.add_buffer(file_buffer);
 
     editor.active_buffer = 1;

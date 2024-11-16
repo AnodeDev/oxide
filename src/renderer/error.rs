@@ -1,32 +1,16 @@
 use std::fmt;
 
-#[derive(Debug, Clone, Copy)]
-pub enum ErrorKind {
+#[derive(Debug)]
+pub enum Error {
     DrawError,
 }
 
-impl fmt::Display for ErrorKind {
+impl std::error::Error for Error {}
+
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ErrorKind::DrawError => write!(f, "DrawError"),
+            Error::DrawError => write!(f, "DrawError: Failed to draw to screen"),
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Error<'a> {
-    kind: ErrorKind,
-    msg: &'a str,
-}
-
-impl<'a> Error<'a> {
-    pub fn new(kind: ErrorKind, msg: &'a str) -> Self {
-        Error { kind, msg }
-    }
-}
-
-impl<'a> fmt::Display for Error<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: {}", self.kind, self.msg)
     }
 }

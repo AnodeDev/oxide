@@ -1,10 +1,9 @@
 use ratatui::prelude::*;
 use ratatui::Terminal;
 
-use std::rc::Rc;
 use std::io::Stdout;
 
-use crate::buffer::{Buffer, Manipulation, Mode, CommandLineState};
+use crate::buffer::{Buffer, Manipulation, Mode};
 use crate::renderer::Renderer;
 use crate::keybinding::{Action, CommandParser, KeybindingManager, ModeParams};
 use crate::OxideError;
@@ -73,7 +72,7 @@ impl Editor {
             Action::InsertChar(c)            => {
                 match self.get_active_buffer_mut().add_char(c) {
                     Ok(_) => {},
-                    Err(e) => return Err(OxideError::new(crate::ErrorKind::BufferError(e))),
+                    Err(e) => return Err(OxideError::BufferError(e)),
                 }
             },
             Action::NewLine(direction)       => self.get_active_buffer_mut().new_line(direction),
@@ -85,14 +84,11 @@ impl Editor {
             Action::DeleteChar               => {
                 match self.get_active_buffer_mut().remove_char() {
                     Ok(_) => {},
-                    Err(e) => return Err(OxideError::new(crate::ErrorKind::BufferError(e))),
+                    Err(e) => return Err(OxideError::BufferError(e)),
                 }
             },
             Action::WriteBuffer              => {
-                match tokio_runtime.block_on(self.get_active_buffer_mut().write_buffer()) {
-                    Ok(_) => {},
-                    Err(e) => return Err(OxideError::new(crate::ErrorKind::BufferError(e))),
-                }
+                tokio_runtime.block_on(self.get_active_buffer_mut().write_buffer())?;
             },
             Action::ExecuteCommand => {
                 let input: String = self.get_active_buffer_mut().get_command();
@@ -100,25 +96,16 @@ impl Editor {
                 let commands = CommandParser::parse(input, state);
 
                 for command in commands {
-                    match self.parse_action(command, keybinding_manager, tokio_runtime) {
-                        Ok(_) => {},
-                        Err(e) => return Err(e),
-                    };
+                    self.parse_action(command, keybinding_manager, tokio_runtime)?;
                 }
 
                 self.get_active_buffer_mut().switch_mode(ModeParams::Normal { mode: Mode::Normal });
             },
             Action::OpenFile(path) => {
-                match tokio_runtime.block_on(self.get_active_buffer_mut().load_file(path)) {
-                    Ok(_) => {},
-                    Err(e) => return Err(OxideError::new(crate::ErrorKind::BufferError(e))),
-                }
+                tokio_runtime.block_on(self.get_active_buffer_mut().load_file(path))?;
             },
             Action::FindFile => {
-                match tokio_runtime.block_on(self.get_active_buffer_mut().find_file()) {
-                    Ok(_) => {},
-                    Err(e) => return Err(OxideError::new(crate::ErrorKind::BufferError(e))),
-                };
+                tokio_runtime.block_on(self.get_active_buffer_mut().find_file())?;
             },
             Action::InitSwitchBuffer => {
                 self.switch_buffer();
@@ -129,10 +116,7 @@ impl Editor {
                 }
             },
             Action::AppendSelected => {
-                match self.get_active_buffer_mut().append_selected() {
-                    Ok(_) => {},
-                    Err(e) => return Err(OxideError::new(crate::ErrorKind::BufferError(e))),
-                }
+                self.get_active_buffer_mut().append_selected()?;
             },
             _ => {},
         };

@@ -1,42 +1,50 @@
 use crate::buffer;
+use crate::renderer;
 use crate::utils;
 
 use std::fmt;
 
 #[derive(Debug)]
-pub enum ErrorKind {
+pub enum OxideError {
     BufferError(buffer::Error),
+    RendererError(renderer::Error),
     UtilsError(utils::Error),
-    ExternError(std::io::Error),
+    IoError(std::io::Error),
 }
 
-impl fmt::Display for ErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ErrorKind::BufferError(e) => write!(f, "ERROR: {}", e),
-            ErrorKind::UtilsError(e)  => write!(f, "ERROR: {}", e),
-            ErrorKind::ExternError(e) => write!(f, "ERROR: {}", e),
-        }
+impl From<std::io::Error> for OxideError {
+    fn from(error: std::io::Error) -> Self {
+        OxideError::IoError(error)
     }
 }
 
-#[derive(Debug)]
-pub struct OxideError {
-    kind: ErrorKind,
-}
-
-impl OxideError {
-    pub fn new(kind: ErrorKind) -> Self {
-        OxideError { kind }
+impl From<buffer::Error> for OxideError {
+    fn from(error: buffer::Error) -> Self {
+        OxideError::BufferError(error)
     }
 }
+
+impl From<renderer::Error> for OxideError {
+    fn from(error: renderer::Error) -> Self {
+        OxideError::RendererError(error)
+    }
+}
+
+impl From<utils::Error> for OxideError {
+    fn from(error: utils::Error) -> Self {
+        OxideError::UtilsError(error)
+    }
+}
+
+impl std::error::Error for OxideError {}
 
 impl fmt::Display for OxideError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match &self.kind {
-            ErrorKind::BufferError(e) => write!(f, "{}", format!("{}", e)),
-            ErrorKind::UtilsError(e)  => write!(f, "{}", format!("{}", e)),
-            ErrorKind::ExternError(e) => write!(f, "{}", format!("{}", e)),
+        match self {
+            OxideError::BufferError(e)   => write!(f, "ERROR: {}", e),
+            OxideError::RendererError(e) => write!(f, "ERROR: {}", e),
+            OxideError::UtilsError(e)    => write!(f, "ERROR: {}", e),
+            OxideError::IoError(e)       => write!(f, "ERROR: {}", e),
         }
     }
 }

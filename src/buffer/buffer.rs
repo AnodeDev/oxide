@@ -7,7 +7,7 @@ use std::fmt;
 use std::rc::Rc;
 
 use crate::keybinding::{NewLineDirection, ModeParams, InsertDirection};
-use crate::buffer::{CommandLineManager, CommandLineState, Viewport, Error, ErrorKind};
+use crate::buffer::{CommandLineManager, CommandLineState, Viewport, Error};
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -105,6 +105,7 @@ pub struct Buffer {
     pub command_line: CommandLineManager,
     pub visual_start: Option<Cursor>,
     pub visual_end: Option<Cursor>,
+    pub history: Vec<String>,
 }
 
 /// Implements some preset buffers for code cleanliness.
@@ -129,6 +130,7 @@ impl Buffer {
             command_line: CommandLineManager::default(),
             visual_start: None,
             visual_end: None,
+            history: Vec::new(),
         }))
     }
 
@@ -151,6 +153,7 @@ impl Buffer {
             command_line: CommandLineManager::default(),
             visual_start: None,
             visual_end: None,
+            history: Vec::new(),
         }
     }
 
@@ -159,19 +162,11 @@ impl Buffer {
         let mut content = String::new();
 
         path.push(path_str);
-        match File::open(path.clone()) {
-            Ok(file) => {
-                let mut buf_reader = BufReader::new(&file);
-                match buf_reader.read_to_string(&mut content) {
-                    Ok(_) => {},
-                    Err(_) => {},
-                }
-            },
-            Err(_) => {
-                return Err(Error::new(ErrorKind::FileNotFoundError, "Was not able to open/create file".to_string()));
-            },
-        };
+        let file = File::open(path.clone())?;
+        let mut buf_reader = BufReader::new(file);
         let mut file_name = "[NO NAME]".to_string();
+
+        buf_reader.read_to_string(&mut content)?;
 
         if let Some(name_osstr) = Path::new(path_str).file_name() {
             file_name = name_osstr.to_string_lossy().into_owned();
@@ -188,6 +183,7 @@ impl Buffer {
             command_line: CommandLineManager::default(),
             visual_start: None,
             visual_end: None,
+            history: Vec::new(),
         })
     }
 
@@ -202,18 +198,9 @@ impl Buffer {
             ContentSource::File(path) => {
                 let content_str = self.content.join("\n");
                 let content_b = content_str.as_bytes();
-                let mut file = File::create(&path);
+                let mut file = File::create(&path)?;
 
-                match &mut file {
-                    Ok(file) => match file.write_all(content_b) {
-                        Ok(_) => {},
-                        Err(_) => {},
-                    }
-                    Err(_) => {
-                        return Err(Error::new(ErrorKind::WriteToSourceError, "Was not able to write to source".to_string()));
-                    },
-                }
-
+                file.write_all(content_b)?;
             },
             _ => {},
         }
@@ -283,13 +270,10 @@ impl Buffer {
             match File::open(path.clone()) {
                 Ok(file) => {
                     let mut buf_reader = BufReader::new(&file);
-                    match buf_reader.read_to_string(&mut content) {
-                        Ok(_) => {},
-                        Err(_) => {},
-                    }
+                    buf_reader.read_to_string(&mut content)?;
                 },
-                Err(_) => {
-                    return Err(Error::new(ErrorKind::FileNotFoundError, "Was not able to open/create file".to_string()));
+                Err(e) => {
+                    return Err(Error::IoError(e));
                 },
             };
             self.title = "[NO NAME]".to_string();
@@ -302,7 +286,7 @@ impl Buffer {
 
             Ok(())
         } else {
-            Err(Error::new(ErrorKind::FileNotFoundError, "Was not able to open/create file".to_string()))
+            Err(Error::FileNotFoundError)
         }
     }
     
@@ -320,7 +304,7 @@ impl Buffer {
 
                 path.clone()
             },
-            _ => return Err(Error::new(ErrorKind::InvalidSourceError, "Cannot open file from this buffer".to_string())),
+            _ => return Err(Error::InvalidSourceError),
         };
 
         if path.is_dir() {
@@ -399,10 +383,10 @@ impl Buffer {
                                 state: CommandLineState::FindFile,
                             });
                         },
-                        Err(e) => return Err(Error::new(ErrorKind::ConvertToPathError, format!("{}", e))),
+                        Err(e) => return Err(Error::IoError(e)),
                     }
                 },
-                Err(e) => return Err(Error::new(ErrorKind::ReadDirectoryError, format!("{}", e))),
+                Err(e) => return Err(Error::IoError(e)),
             }
         }
 
@@ -411,7 +395,7 @@ impl Buffer {
 
     pub fn append_selected(&mut self) -> Result<()> {
         if self.mode != Mode::Command {
-            return Err(Error::new(ErrorKind::WrongModeError, "Should be in Command mode".to_string()));
+            return Err(Error::WrongModeError);
         } else {
             let content = &self.command_line.content[self.command_line.cursor.y];
 
@@ -507,13 +491,10 @@ impl Manipulation for Buffer {
                 self.cursor.x += 1;
             },
             Mode::Command => {
-                match self.command_line.add_char(character) {
-                    Ok(_) => {},
-                    Err(e) => return Err(e),
-                };
+                self.command_line.add_char(character)?;
             },
             // If user is in normal- or visual mode, something is wrong.
-            Mode::Normal | Mode::Visual => return Err(Error::new(ErrorKind::WrongModeError, "Expected Insert or Command, found".to_string())),
+            Mode::Normal | Mode::Visual => return Err(Error::WrongModeError),
         };
 
         Ok(())
@@ -570,10 +551,7 @@ impl Manipulation for Buffer {
                 }
             },
             Mode::Command => {
-                match self.command_line.remove_char() {
-                    Ok(_) => {},
-                    Err(e) => return Err(e),
-                }
+                self.command_line.remove_char()?;
             },
             // Removes the selected characters.
             Mode::Visual => {
@@ -647,7 +625,7 @@ impl Manipulation for Buffer {
                     self.cursor.y = top.y;
                     self.switch_mode(ModeParams::Normal { mode: Mode::Normal });
                 } else {
-                    return Err(Error::new(ErrorKind::VisualModeInitError, "Visual mode was not setup correctly".to_string()));
+                    return Err(Error::VisualModeInitError);
                 }
 
             }

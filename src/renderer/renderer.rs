@@ -9,9 +9,9 @@ use std::io::Stdout;
 use std::path::Path;
 
 use crate::buffer::{Buffer, CommandLineState, Cursor, Mode};
-use crate::renderer::{Error, ErrorKind};
+use crate::renderer::Error;
 
-type Result<'a, T> = std::result::Result<T, Error<'a>>;
+type Result<'a, T> = std::result::Result<T, Error>;
 
 /// Handles the rendering of the buffer
 pub struct Renderer {
@@ -24,7 +24,7 @@ impl Renderer {
     }
 
     /// Renders the current buffer
-    pub fn render(&mut self, buffer: &Buffer) -> Result<'static, ()> {
+    pub fn render(&mut self, buffer: &Buffer) -> Result<()> {
         let mut lines: Vec<Line> = Vec::new();
         let mut nums: Vec<Line> = Vec::new();
         let mut formatted_cmd_content: Vec<Line> = Vec::new();
@@ -188,9 +188,7 @@ impl Renderer {
 
         match draw_state {
             Ok(_) => Ok(()),
-            Err(_) => {
-                Err(Error::new(ErrorKind::DrawError, "Failed to draw to screen"))
-            },
+            Err(_) => Err(Error::DrawError),
         }
     }
 

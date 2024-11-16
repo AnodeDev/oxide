@@ -1,7 +1,7 @@
 use std::fmt;
 
-#[derive(Debug, Clone, Copy)]
-pub enum ErrorKind {
+#[derive(Debug)]
+pub enum Error {
     WriteToSourceError,
     FileNotFoundError,
     WrongModeError,
@@ -9,38 +9,28 @@ pub enum ErrorKind {
     VisualModeInitError,
     ConvertToPathError,
     ReadDirectoryError,
-    ExternError,
+    IoError(std::io::Error),
 }
 
-impl fmt::Display for ErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ErrorKind::WriteToSourceError => write!(f, "WriteToSourceError"),
-            ErrorKind::FileNotFoundError => write!(f, "FileNotFoundError"),
-            ErrorKind::WrongModeError => write!(f, "WrongModeError"),
-            ErrorKind::InvalidSourceError => write!(f, "InvalidSourceError"),
-            ErrorKind::VisualModeInitError => write!(f, "VisualModeInitError"),
-            ErrorKind::ConvertToPathError => write!(f, "ConvertToPathError"),
-            ErrorKind::ReadDirectoryError => write!(f, "ReadDirectoryError"),
-            ErrorKind::ExternError => write!(f, "ExternError"),
-        }
+impl From<std::io::Error> for Error {
+    fn from(error: std::io::Error) -> Self {
+        Error::IoError(error)
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Error {
-    kind: ErrorKind,
-    msg: String,
-}
-
-impl Error {
-    pub fn new(kind: ErrorKind, msg: String) -> Self {
-        Error { kind, msg }
-    }
-}
+impl std::error::Error for Error {}
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: {}", self.kind, self.msg)
+        match self {
+            Error::WriteToSourceError  => write!(f, "WriteToSourceError: Failed to write to source"),
+            Error::FileNotFoundError   => write!(f, "FileNotFoundError: File was not found"),
+            Error::WrongModeError      => write!(f, "WrongModeError: Wrong mode to execute function"),
+            Error::InvalidSourceError  => write!(f, "InvalidSourceError: You're not able to perform this action from this buffer"),
+            Error::VisualModeInitError => write!(f, "VisualModeInitError: Visual mode was not initialized correctly"),
+            Error::ConvertToPathError  => write!(f, "ConvertToPathError: Failed to convert to path"),
+            Error::ReadDirectoryError  => write!(f, "ReadDirectoryError: Failed to read directory"),
+            Error::IoError(e)          => write!(f, "{}", e),
+        }
     }
 }
