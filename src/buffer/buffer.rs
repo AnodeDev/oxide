@@ -22,10 +22,11 @@ pub trait Manipulation {
     fn delete_line(&mut self);
 }
 
-#[derive(Clone)]
-pub enum ContentSource {
+#[derive(PartialEq, Eq, Clone)]
+pub enum BufferKind {
     NoSource,
     File(PathBuf),
+    BufferList,
 }
 
 /// All available modal modes.
@@ -97,7 +98,7 @@ impl std::default::Default for BufferState {
 pub struct Buffer {
     pub title: String,
     pub content: Vec<String>,
-    source: ContentSource,
+    pub kind: BufferKind,
     pub cursor: Cursor,
     pub viewport: Viewport,
     pub mode: Mode,
@@ -105,7 +106,6 @@ pub struct Buffer {
     pub command_line: CommandLineManager,
     pub visual_start: Option<Cursor>,
     pub visual_end: Option<Cursor>,
-    pub history: Vec<String>,
 }
 
 /// Implements some preset buffers for code cleanliness.
@@ -114,15 +114,21 @@ impl Buffer {
     pub fn new(
         title: String,
         content: Vec<String>,
-        source: ContentSource,
+        source: BufferKind,
         height: usize,
         state: BufferState,
     ) -> Rc<RefCell<Self>>
     {
+        let content = if content.is_empty() {
+            vec![ String::new() ]
+        } else {
+            content
+        };
+
         Rc::new(RefCell::new(Buffer {
             title,
             content,
-            source,
+            kind: source,
             cursor: Cursor::default(),
             viewport: Viewport::new(height - 2),
             mode: Mode::Normal,
@@ -130,7 +136,6 @@ impl Buffer {
             command_line: CommandLineManager::default(),
             visual_start: None,
             visual_end: None,
-            history: Vec::new(),
         }))
     }
 
@@ -145,7 +150,7 @@ impl Buffer {
                 "It's meant to be used to play around, sketch, and try new plugins.".to_string(),
                 String::new(),
             ],
-            source: ContentSource::NoSource,
+            kind: BufferKind::NoSource,
             cursor: Cursor::default(),
             viewport: Viewport::new(height - 2),
             mode: Mode::Normal,
@@ -153,7 +158,21 @@ impl Buffer {
             command_line: CommandLineManager::default(),
             visual_start: None,
             visual_end: None,
-            history: Vec::new(),
+        }
+    }
+
+    pub fn buffer_list(height: usize) -> Self {
+        Buffer {
+            title: "*Buffers*".to_string(),
+            content: vec![ String::new() ],
+            kind: BufferKind::BufferList,
+            cursor: Cursor::default(),
+            viewport: Viewport::new(height - 2),
+            mode: Mode::Normal,
+            state: BufferState::locked(),
+            command_line: CommandLineManager::default(),
+            visual_start: None,
+            visual_end: None,
         }
     }
 
@@ -175,7 +194,7 @@ impl Buffer {
         Ok(Buffer {
             title: file_name,
             content: content.split("\n").map(|line| line.to_string()).collect(),
-            source: ContentSource::File(path),
+            kind: BufferKind::File(path),
             cursor: Cursor::default(),
             viewport: Viewport::new(height - 2),
             mode: Mode::Normal,
@@ -183,7 +202,6 @@ impl Buffer {
             command_line: CommandLineManager::default(),
             visual_start: None,
             visual_end: None,
-            history: Vec::new(),
         })
     }
 
@@ -194,8 +212,8 @@ impl Buffer {
             return Ok(())
         }
 
-        match &mut self.source {
-            ContentSource::File(path) => {
+        match &mut self.kind {
+            BufferKind::File(path) => {
                 let content_str = self.content.join("\n");
                 let content_b = content_str.as_bytes();
                 let mut file = File::create(&path)?;
@@ -238,16 +256,18 @@ impl Buffer {
                 self.mode = mode;
             },
             ModeParams::Insert{mode, insert_direction} => {
-                match insert_direction {
-                    InsertDirection::Before => {},
-                    InsertDirection::After => {
-                        if self.content[self.cursor.y].len() > self.cursor.x {
-                            self.cursor.x += 1;
-                        }
-                    },
-                }
+                if self.state.mutable {
+                    match insert_direction {
+                        InsertDirection::Before => {},
+                        InsertDirection::After => {
+                            if self.content[self.cursor.y].len() > self.cursor.x {
+                                self.cursor.x += 1;
+                            }
+                        },
+                    }
 
-                self.mode = mode;
+                    self.mode = mode;
+                }
             }
             ModeParams::Normal{mode} => self.mode = mode,
         }
@@ -263,7 +283,7 @@ impl Buffer {
 
     pub async fn load_file(&mut self, path: String) -> Result<()> {
         if Path::new(&path).is_file() {
-            self.source = ContentSource::File(Path::new(&path).to_path_buf());
+            self.kind = BufferKind::File(Path::new(&path).to_path_buf());
 
             let mut content = String::new();
 
@@ -291,15 +311,15 @@ impl Buffer {
     }
     
     pub async fn find_file(&mut self) -> Result<()> {
-        let mut path = match &mut self.source.clone() {
-            ContentSource::NoSource => {
+        let mut path = match &mut self.kind.clone() {
+            BufferKind::NoSource => {
                 let mut path = PathBuf::new();
 
                 path.push("~/");
 
                 path
             },
-            ContentSource::File(path) => {
+            BufferKind::File(path) => {
                 path.pop();
 
                 path.clone()
@@ -510,19 +530,21 @@ impl Manipulation for Buffer {
                 self.cursor.x = 0;
             },
             Mode::Normal => {
-                match direction {
-                    NewLineDirection::Under => {
-                        self.content.insert(self.cursor.y + 1, String::new());
-                        self.cursor.y += 1;
-                        self.cursor.x = 0;
-                    },
-                    NewLineDirection::Over => {
-                        self.content.insert(self.cursor.y, String::new());
-                        self.cursor.x = 0;
-                    },
-                }
+                if self.state.mutable {
+                    match direction {
+                        NewLineDirection::Under => {
+                            self.content.insert(self.cursor.y + 1, String::new());
+                            self.cursor.y += 1;
+                            self.cursor.x = 0;
+                        },
+                        NewLineDirection::Over => {
+                            self.content.insert(self.cursor.y, String::new());
+                            self.cursor.x = 0;
+                        },
+                    }
 
-                self.mode = Mode::Insert;
+                    self.mode = Mode::Insert;
+                }
             },
             _ => {},
         }
@@ -546,8 +568,10 @@ impl Manipulation for Buffer {
             },
             // Removes the character under the cursor, like 'x' in Neovim.
             Mode::Normal => {
-                if self.cursor.x < self.content[self.cursor.y].len() {
-                    self.content[self.cursor.y].remove(self.cursor.x);
+                if self.state.mutable {
+                    if self.cursor.x < self.content[self.cursor.y].len() {
+                        self.content[self.cursor.y].remove(self.cursor.x);
+                    }
                 }
             },
             Mode::Command => {
@@ -555,79 +579,81 @@ impl Manipulation for Buffer {
             },
             // Removes the selected characters.
             Mode::Visual => {
-                if let (Some(start), Some(end)) = (&mut self.visual_start, &mut self.visual_end) {
-                    // Sets the top and bottom cursor positions.
-                    let (top, bottom) = if start.y < end.y {
-                        (start, end)
-                    } else if start.y == end.y && start.x < end.x {
-                        (start, end)
-                    } else if start.y == end.y && start.x > end.x {
-                        (end, start)
-                    } else {
-                        (end, start)
-                    };
+                if self.state.mutable {
+                    if let (Some(start), Some(end)) = (&mut self.visual_start, &mut self.visual_end) {
+                        // Sets the top and bottom cursor positions.
+                        let (top, bottom) = if start.y < end.y {
+                            (start, end)
+                        } else if start.y == end.y && start.x < end.x {
+                            (start, end)
+                        } else if start.y == end.y && start.x > end.x {
+                            (end, start)
+                        } else {
+                            (end, start)
+                        };
 
-                    let mut selected_lines: Vec<String> = self.content[top.y..bottom.y + 1].iter().map(|line| line.to_string()).collect();
+                        let mut selected_lines: Vec<String> = self.content[top.y..bottom.y + 1].iter().map(|line| line.to_string()).collect();
 
-                    // Checks is selection is on one line or multiple lines.
-                    let new_top_line = if top.y < bottom.y {
-                        selected_lines[0][..top.x].to_string()
-                    } else {
-                        let mut beginning = selected_lines[0][..top.x].to_string();
-                        let end = selected_lines[0][bottom.x + 1..].to_string();
-                        beginning.push_str(&end);
+                        // Checks is selection is on one line or multiple lines.
+                        let new_top_line = if top.y < bottom.y {
+                            selected_lines[0][..top.x].to_string()
+                        } else {
+                            let mut beginning = selected_lines[0][..top.x].to_string();
+                            let end = selected_lines[0][bottom.x + 1..].to_string();
+                            beginning.push_str(&end);
 
-                        beginning
-                    };
+                            beginning
+                        };
 
-                    // Checks if the whole line is selected.
-                    if top.x == 0 && (bottom.x == selected_lines[0].len() || selected_lines.len() > 1) {
-                        self.content[top.y] = "".to_string();
-                    } else {
-                        self.content[top.y] = new_top_line;
-                    }
+                        // Checks if the whole line is selected.
+                        if top.x == 0 && (bottom.x == selected_lines[0].len() || selected_lines.len() > 1) {
+                            self.content[top.y] = "".to_string();
+                        } else {
+                            self.content[top.y] = new_top_line;
+                        }
 
-                    // Removes first and last line from selected_lines.
-                    selected_lines.remove(0);
-                    let last_line = selected_lines.pop();
+                        // Removes first and last line from selected_lines.
+                        selected_lines.remove(0);
+                        let last_line = selected_lines.pop();
 
-                    // Removes all selected lines between first and last.
-                    for (num, _line) in selected_lines.iter().enumerate() {
-                        self.content.remove(top.y + num + 1);
-                    }
+                        // Removes all selected lines between first and last.
+                        for (num, _line) in selected_lines.iter().enumerate() {
+                            self.content.remove(top.y + num + 1);
+                        }
 
-                    // Makes sure bottom.y is set correctly.
-                    bottom.y = top.y + 1;
+                        // Makes sure bottom.y is set correctly.
+                        bottom.y = top.y + 1;
 
-                    // Checks if last line even exists.
-                    match last_line {
-                        Some(line) => {
-                            if line.len() > 0 {
-                                if bottom.x == line.len() {
-                                    bottom.x -= 1;
+                        // Checks if last line even exists.
+                        match last_line {
+                            Some(line) => {
+                                if line.len() > 0 {
+                                    if bottom.x == line.len() {
+                                        bottom.x -= 1;
+                                    }
+
+                                    self.content[bottom.y] = line[bottom.x + 1..].to_string();
+
+                                    let current_line = self.content.remove(bottom.y);
+
+                                    self.cursor.x = top.y + self.content[top.y].len();
+                                    self.content[top.y].push_str(&current_line);
+                                } else {
+                                    self.content.remove(bottom.y);
                                 }
+                            },
+                            None => {},
+                        }
 
-                                self.content[bottom.y] = line[bottom.x + 1..].to_string();
-
-                                let current_line = self.content.remove(bottom.y);
-
-                                self.cursor.x = top.y + self.content[top.y].len();
-                                self.content[top.y].push_str(&current_line);
-                            } else {
-                                self.content.remove(bottom.y);
-                            }
-                        },
-                        None => {},
+                        // Updates the cursor position and switches back to normal mode.
+                        self.cursor.x = top.x;
+                        self.cursor.y = top.y;
+                        self.switch_mode(ModeParams::Normal { mode: Mode::Normal });
+                    } else {
+                        return Err(Error::VisualModeInitError);
                     }
 
-                    // Updates the cursor position and switches back to normal mode.
-                    self.cursor.x = top.x;
-                    self.cursor.y = top.y;
-                    self.switch_mode(ModeParams::Normal { mode: Mode::Normal });
-                } else {
-                    return Err(Error::VisualModeInitError);
                 }
-
             }
         }
 
@@ -636,16 +662,18 @@ impl Manipulation for Buffer {
 
     // Deletes the current line.
     fn delete_line(&mut self) {
-        if self.content.len() > 1 {
-            self.content.remove(self.cursor.y);
+        if self.state.mutable {
+            if self.content.len() > 1 {
+                self.content.remove(self.cursor.y);
 
-            if self.cursor.y > self.content.len() - 1 {
-                self.cursor.y -= 1;
+                if self.cursor.y > self.content.len() - 1 {
+                    self.cursor.y -= 1;
+                }
+            } else {
+                self.content[self.cursor.y] = String::new();
             }
-        } else {
-            self.content[self.cursor.y] = String::new();
-        }
 
-        self.cursor.x = 0;
+            self.cursor.x = 0;
+        }
     }
 }

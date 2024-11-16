@@ -3,7 +3,7 @@ use ratatui::Terminal;
 
 use std::io::Stdout;
 
-use crate::buffer::{Buffer, Manipulation, Mode};
+use crate::buffer::{Buffer, Manipulation, Mode, BufferKind};
 use crate::renderer::Renderer;
 use crate::keybinding::{Action, CommandParser, KeybindingManager, ModeParams};
 use crate::OxideError;
@@ -36,12 +36,20 @@ impl Editor {
     }
 
     /// Borrows the current buffer
-    pub fn get_active_buffer(&self) -> &Buffer {
+    pub fn get_active_buffer(&mut self) -> &Buffer {
+        if self.buffers[self.active_buffer].kind == BufferKind::BufferList {
+            self.buffers[self.active_buffer].content = self.buffers.iter().map(|buffer| buffer.title.clone()).collect();
+        }
+
         &self.buffers[self.active_buffer]
     }
 
     /// Borrows the current buffer as mutable
     pub fn get_active_buffer_mut(&mut self) -> &mut Buffer {
+        if self.buffers[self.active_buffer].kind == BufferKind::BufferList {
+            self.buffers[self.active_buffer].content = self.buffers.iter().map(|buffer| buffer.title.clone()).collect();
+        }
+
         &mut self.buffers[self.active_buffer]
     }
 

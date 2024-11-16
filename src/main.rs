@@ -22,6 +22,9 @@ fn main() -> Result<()> {
     let file_buffer = tokio_runtime.block_on(Buffer::from_file(file_path, terminal_height))?;
     editor.add_buffer(file_buffer);
 
+    let buffer_list_buffer = Buffer::buffer_list(terminal_height);
+    editor.add_buffer(buffer_list_buffer);
+
     editor.active_buffer = 1;
 
     // Main loop
