@@ -2,7 +2,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use std::collections::HashMap;
 
-use crate::buffer::{CommandLineState, Mode};
+use crate::buffer::{BufferKind, CommandLineState, Mode};
 
 /// Defines all the available actions
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -24,18 +24,19 @@ pub enum Action {
     InitSwitchBuffer,
     SwitchBuffer(String),
     AppendSelected,
+    Select,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum ModeParams {
-    Normal{
+    Normal {
         mode: Mode,
     },
     Insert {
-        mode: Mode, 
+        mode: Mode,
         insert_direction: InsertDirection,
     },
-    Visual{
+    Visual {
         mode: Mode,
     },
     Command {
@@ -66,7 +67,7 @@ pub struct KeySequence {
 }
 
 /// Stores the key information for ease of access
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct Keybinding {
     pub key: KeyCode,
     pub modifiers: KeyModifiers,
@@ -74,8 +75,9 @@ pub struct Keybinding {
 
 /// Stores all available keybindings as well as the currently pressed one
 pub struct KeybindingManager {
-    mode_bindings: HashMap<Mode, HashMap<KeySequence, Action>>,
+    mode_bindings: HashMap<Mode, HashMap<Option<BufferKind>, HashMap<KeySequence, Action>>>,
     current_mode: Mode,
+    current_buffer_kind: BufferKind,
     current_sequence: KeySequence,
 }
 
@@ -87,6 +89,7 @@ impl KeybindingManager {
         let mut manager = KeybindingManager {
             mode_bindings: HashMap::new(),
             current_mode: Mode::Normal,
+            current_buffer_kind: BufferKind::Normal,
             current_sequence: KeySequence { keys: Vec::new() },
         };
 
@@ -99,200 +102,278 @@ impl KeybindingManager {
         // NORMAL MODE
         self.add_binding(
             Mode::Normal,
-            vec![ (KeyCode::Char('n'), KeyModifiers::NONE) ],
-            Action::MoveCursor(-1, 0));
+            None,
+            vec![(KeyCode::Char('n'), KeyModifiers::NONE)],
+            Action::MoveCursor(-1, 0),
+        );
 
         self.add_binding(
             Mode::Normal,
-            vec![ (KeyCode::Char('e'), KeyModifiers::NONE) ],
-            Action::MoveCursor(0, 1));
+            None,
+            vec![(KeyCode::Char('e'), KeyModifiers::NONE)],
+            Action::MoveCursor(0, 1),
+        );
 
         self.add_binding(
             Mode::Normal,
-            vec![ (KeyCode::Char('i'), KeyModifiers::NONE) ],
-            Action::MoveCursor(0, -1));
+            None,
+            vec![(KeyCode::Char('i'), KeyModifiers::NONE)],
+            Action::MoveCursor(0, -1),
+        );
 
         self.add_binding(
             Mode::Normal,
-            vec![ (KeyCode::Char('o'), KeyModifiers::NONE) ],
-            Action::MoveCursor(1, 0));
+            None,
+            vec![(KeyCode::Char('o'), KeyModifiers::NONE)],
+            Action::MoveCursor(1, 0),
+        );
 
         self.add_binding(
             Mode::Normal,
-            vec![ (KeyCode::Char('s'), KeyModifiers::NONE) ],
+            Some(BufferKind::Normal),
+            vec![(KeyCode::Char('s'), KeyModifiers::NONE)],
             Action::SwitchMode(ModeParams::Insert {
                 mode: Mode::Insert,
                 insert_direction: InsertDirection::Before,
-            }));
+            }),
+        );
 
         self.add_binding(
             Mode::Normal,
-            vec![ (KeyCode::Char('a'), KeyModifiers::NONE) ],
+            Some(BufferKind::Normal),
+            vec![(KeyCode::Char('a'), KeyModifiers::NONE)],
             Action::SwitchMode(ModeParams::Insert {
                 mode: Mode::Insert,
                 insert_direction: InsertDirection::After,
-            }));
+            }),
+        );
 
         self.add_binding(
             Mode::Normal,
-            vec![ (KeyCode::Char('x'), KeyModifiers::NONE) ],
-            Action::DeleteChar);
+            Some(BufferKind::Normal),
+            vec![(KeyCode::Char('x'), KeyModifiers::NONE)],
+            Action::DeleteChar,
+        );
 
         self.add_binding(
             Mode::Normal,
+            Some(BufferKind::Normal),
             vec![
                 (KeyCode::Char('d'), KeyModifiers::NONE),
-                (KeyCode::Char('d'), KeyModifiers::NONE)
+                (KeyCode::Char('d'), KeyModifiers::NONE),
             ],
-            Action::DeleteLine);
+            Action::DeleteLine,
+        );
 
         self.add_binding(
             Mode::Normal,
+            None,
             vec![
                 (KeyCode::Char('g'), KeyModifiers::NONE),
-                (KeyCode::Char('g'), KeyModifiers::NONE)
+                (KeyCode::Char('g'), KeyModifiers::NONE),
             ],
-            Action::TopOfBuffer);
+            Action::TopOfBuffer,
+        );
 
         self.add_binding(
             Mode::Normal,
-            vec![ (KeyCode::Char('G'), KeyModifiers::SHIFT) ],
-            Action::EndOfBuffer);
+            None,
+            vec![(KeyCode::Char('G'), KeyModifiers::SHIFT)],
+            Action::EndOfBuffer,
+        );
 
         self.add_binding(
             Mode::Normal,
+            None,
             vec![
                 (KeyCode::Char(' '), KeyModifiers::NONE),
                 (KeyCode::Char('f'), KeyModifiers::NONE),
-                (KeyCode::Char('f'), KeyModifiers::NONE)
+                (KeyCode::Char('f'), KeyModifiers::NONE),
             ],
-            Action::FindFile);
+            Action::FindFile,
+        );
 
         self.add_binding(
             Mode::Normal,
+            None,
             vec![
                 (KeyCode::Char(' '), KeyModifiers::NONE),
                 (KeyCode::Char('b'), KeyModifiers::NONE),
-                (KeyCode::Char('s'), KeyModifiers::NONE)
+                (KeyCode::Char('s'), KeyModifiers::NONE),
             ],
-            Action::InitSwitchBuffer);
+            Action::InitSwitchBuffer,
+        );
 
         self.add_binding(
             Mode::Normal,
-            vec![ (KeyCode::Char('f'), KeyModifiers::NONE) ],
-            Action::NewLine(NewLineDirection::Under));
+            Some(BufferKind::Normal),
+            vec![(KeyCode::Char('f'), KeyModifiers::NONE)],
+            Action::NewLine(NewLineDirection::Under),
+        );
 
         self.add_binding(
             Mode::Normal,
-            vec![ (KeyCode::Char('F'), KeyModifiers::SHIFT) ],
-            Action::NewLine(NewLineDirection::Over));
+            Some(BufferKind::Normal),
+            vec![(KeyCode::Char('F'), KeyModifiers::SHIFT)],
+            Action::NewLine(NewLineDirection::Over),
+        );
 
         self.add_binding(
             Mode::Normal,
-            vec![ (KeyCode::Char(':'), KeyModifiers::NONE) ],
+            None,
+            vec![(KeyCode::Char(':'), KeyModifiers::NONE)],
             Action::SwitchMode(ModeParams::Command {
-                mode: Mode::Command, 
+                mode: Mode::Command,
                 prefix: ":".to_string(),
                 input: String::new(),
                 state: CommandLineState::Default,
-            }));
+            }),
+        );
 
         self.add_binding(
             Mode::Normal,
-            vec![ (KeyCode::Char('v'), KeyModifiers::NONE) ],
-            Action::SwitchMode(ModeParams::Visual { mode: Mode::Visual }));
+            None,
+            vec![(KeyCode::Char('v'), KeyModifiers::NONE)],
+            Action::SwitchMode(ModeParams::Visual { mode: Mode::Visual }),
+        );
+
+        self.add_binding(
+            Mode::Normal,
+            Some(BufferKind::BufferList),
+            vec![(KeyCode::Enter, KeyModifiers::NONE)],
+            Action::Select,
+        );
 
         // INSERT MODE
         self.add_binding(
             Mode::Insert,
-            vec![ (KeyCode::Esc, KeyModifiers::NONE) ],
-            Action::SwitchMode(ModeParams::Normal { mode: Mode::Normal, }));
+            None,
+            vec![(KeyCode::Esc, KeyModifiers::NONE)],
+            Action::SwitchMode(ModeParams::Normal { mode: Mode::Normal }),
+        );
 
         self.add_binding(
             Mode::Insert,
-            vec![ (KeyCode::Enter, KeyModifiers::NONE) ],
-            Action::NewLine(NewLineDirection::Under));
+            None,
+            vec![(KeyCode::Enter, KeyModifiers::NONE)],
+            Action::NewLine(NewLineDirection::Under),
+        );
 
         // VISUAL MODE
         self.add_binding(
             Mode::Visual,
-            vec![ (KeyCode::Char('n'), KeyModifiers::NONE) ],
-            Action::MoveCursor(-1, 0));
+            None,
+            vec![(KeyCode::Char('n'), KeyModifiers::NONE)],
+            Action::MoveCursor(-1, 0),
+        );
 
         self.add_binding(
             Mode::Visual,
-            vec![ (KeyCode::Char('e'), KeyModifiers::NONE) ],
-            Action::MoveCursor(0, 1));
+            None,
+            vec![(KeyCode::Char('e'), KeyModifiers::NONE)],
+            Action::MoveCursor(0, 1),
+        );
 
         self.add_binding(
             Mode::Visual,
-            vec![ (KeyCode::Char('i'), KeyModifiers::NONE) ],
-            Action::MoveCursor(0, -1));
+            None,
+            vec![(KeyCode::Char('i'), KeyModifiers::NONE)],
+            Action::MoveCursor(0, -1),
+        );
 
         self.add_binding(
             Mode::Visual,
-            vec![ (KeyCode::Char('o'), KeyModifiers::NONE) ],
-            Action::MoveCursor(1, 0));
+            None,
+            vec![(KeyCode::Char('o'), KeyModifiers::NONE)],
+            Action::MoveCursor(1, 0),
+        );
 
         self.add_binding(
             Mode::Visual,
-            vec![ (KeyCode::Char('d'), KeyModifiers::NONE) ],
-            Action::DeleteChar);
+            None,
+            vec![(KeyCode::Char('d'), KeyModifiers::NONE)],
+            Action::DeleteChar,
+        );
 
         self.add_binding(
             Mode::Visual,
-            vec![ (KeyCode::Esc, KeyModifiers::NONE) ],
-            Action::SwitchMode(ModeParams::Normal { mode: Mode::Normal, }));
+            None,
+            vec![(KeyCode::Esc, KeyModifiers::NONE)],
+            Action::SwitchMode(ModeParams::Normal { mode: Mode::Normal }),
+        );
 
         // COMMAND MODE
         self.add_binding(
             Mode::Command,
-            vec![ (KeyCode::Esc, KeyModifiers::NONE) ],
-            Action::SwitchMode(ModeParams::Normal { mode: Mode::Normal, }));
+            None,
+            vec![(KeyCode::Esc, KeyModifiers::NONE)],
+            Action::SwitchMode(ModeParams::Normal { mode: Mode::Normal }),
+        );
 
         self.add_binding(
             Mode::Command,
-            vec![ (KeyCode::Enter, KeyModifiers::NONE) ],
-            Action::ExecuteCommand);
+            None,
+            vec![(KeyCode::Enter, KeyModifiers::NONE)],
+            Action::ExecuteCommand,
+        );
 
         self.add_binding(
             Mode::Command,
-            vec![ (KeyCode::Left, KeyModifiers::NONE) ],
-            Action::MoveCursor(-1, 0));
+            None,
+            vec![(KeyCode::Left, KeyModifiers::NONE)],
+            Action::MoveCursor(-1, 0),
+        );
 
         self.add_binding(
             Mode::Command,
-            vec![ (KeyCode::Right, KeyModifiers::NONE) ],
-            Action::MoveCursor(1, 0));
+            None,
+            vec![(KeyCode::Right, KeyModifiers::NONE)],
+            Action::MoveCursor(1, 0),
+        );
 
         self.add_binding(
             Mode::Command,
-            vec![ (KeyCode::Up, KeyModifiers::NONE) ],
-            Action::MoveCursor(0, -1));
+            None,
+            vec![(KeyCode::Up, KeyModifiers::NONE)],
+            Action::MoveCursor(0, -1),
+        );
 
         self.add_binding(
             Mode::Command,
-            vec![ (KeyCode::Down, KeyModifiers::NONE) ],
-            Action::MoveCursor(0, 1));
+            None,
+            vec![(KeyCode::Down, KeyModifiers::NONE)],
+            Action::MoveCursor(0, 1),
+        );
 
         self.add_binding(
             Mode::Command,
-            vec![ (KeyCode::Tab, KeyModifiers::NONE) ],
-            Action::AppendSelected);
+            None,
+            vec![(KeyCode::Tab, KeyModifiers::NONE)],
+            Action::AppendSelected,
+        );
     }
 
     /// Adds keybindings to the keybinding manager
-    pub fn add_binding(&mut self, mode: Mode, key_sequence: Vec<(KeyCode, KeyModifiers)>, action: Action) {
+    pub fn add_binding(
+        &mut self,
+        mode: Mode,
+        buffer_kind: Option<BufferKind>,
+        key_sequence: Vec<(KeyCode, KeyModifiers)>,
+        action: Action,
+    ) {
         // Parses the key sequence
         let sequence = KeySequence {
-            keys: key_sequence.into_iter()
+            keys: key_sequence
+                .into_iter()
                 .map(|(key, modifiers)| Keybinding { key, modifiers })
-                .collect()
+                .collect(),
         };
 
         // Creates a new entry
         self.mode_bindings
             .entry(mode)
+            .or_insert_with(HashMap::new)
+            .entry(buffer_kind)
             .or_insert_with(HashMap::new)
             .insert(sequence, action);
     }
@@ -308,12 +389,11 @@ impl KeybindingManager {
         self.current_sequence.keys.push(key_binding);
 
         let action = match self.current_mode {
-            Mode::Normal  => self.handle_normal_mode(),
-            Mode::Insert  => self.handle_insert_mode(key_binding),
-            Mode::Visual  => self.handle_visual_mode(),
+            Mode::Normal => self.handle_normal_mode(),
+            Mode::Insert => self.handle_insert_mode(key_binding),
+            Mode::Visual => self.handle_visual_mode(),
             Mode::Command => self.handle_command_mode(key_binding),
         };
-
 
         // If the keybinding exists, it's sent back
         // If not it checks if the current key sequence exists in any existing
@@ -322,15 +402,23 @@ impl KeybindingManager {
             self.current_sequence.keys.clear();
             action
         } else {
-            let is_prefix = self.mode_bindings
-                .get(&self.current_mode)
-                .map(|bindings| {
-                    bindings.keys().any(|seq| seq.keys.starts_with(&self.current_sequence.keys))
-                })
-                .unwrap_or(false);
-
-            if !is_prefix {
-                self.current_sequence.keys.clear();
+            if let Some(mode_bindings) = self.mode_bindings.get(&self.current_mode) {
+                if !mode_bindings
+                    .get(&Some(self.current_buffer_kind))
+                    .map(|bindings| {
+                        bindings
+                            .keys()
+                            .any(|seq| seq.keys.starts_with(&self.current_sequence.keys))
+                    })?
+                {
+                    if !mode_bindings.get(&None).map(|bindings| {
+                        bindings
+                            .keys()
+                            .any(|seq| seq.keys.starts_with(&self.current_sequence.keys))
+                    })? {
+                        self.current_sequence.keys.clear();
+                    }
+                }
             }
 
             None
@@ -338,33 +426,83 @@ impl KeybindingManager {
     }
 
     fn handle_normal_mode(&self) -> Option<Action> {
-        self.mode_bindings
-            .get(&self.current_mode)
-            .and_then(|bindings| bindings.get(&self.current_sequence).cloned())
+        if let Some(mode_bindings) = self.mode_bindings.get(&self.current_mode) {
+            if let Some(action) = mode_bindings
+                .get(&Some(self.current_buffer_kind.clone()))
+                .and_then(|bindings| bindings.get(&self.current_sequence))
+            {
+                return Some(action.clone());
+            } else if let Some(action) = mode_bindings
+                .get(&None)
+                .and_then(|bindings| bindings.get(&self.current_sequence))
+            {
+                return Some(action.clone());
+            }
+        }
+        None
     }
 
     fn handle_insert_mode(&self, key_binding: Keybinding) -> Option<Action> {
         match key_binding.key {
-            KeyCode::Char(c)   => Some(Action::InsertChar(c)),
+            KeyCode::Char(c) => Some(Action::InsertChar(c)),
             KeyCode::Backspace => Some(Action::DeleteChar),
-            KeyCode::Enter     => Some(Action::NewLine(NewLineDirection::Under)),
-            _ => self.mode_bindings.get(&Mode::Insert).and_then(|bindings| bindings.get(&self.current_sequence).cloned()),
+            KeyCode::Enter => Some(Action::NewLine(NewLineDirection::Under)),
+            _ => {
+                if let Some(mode_bindings) = self.mode_bindings.get(&self.current_mode) {
+                    if let Some(action) = mode_bindings
+                        .get(&Some(self.current_buffer_kind.clone()))
+                        .and_then(|bindings| bindings.get(&self.current_sequence))
+                    {
+                        return Some(action.clone());
+                    } else if let Some(action) = mode_bindings
+                        .get(&None)
+                        .and_then(|bindings| bindings.get(&self.current_sequence))
+                    {
+                        return Some(action.clone());
+                    }
+                }
+                None
+            }
         }
     }
 
     fn handle_visual_mode(&self) -> Option<Action> {
-        self.mode_bindings
-            .get(&self.current_mode)
-            .and_then(|bindings| bindings.get(&self.current_sequence).cloned())
+        if let Some(mode_bindings) = self.mode_bindings.get(&self.current_mode) {
+            if let Some(action) = mode_bindings
+                .get(&Some(self.current_buffer_kind.clone()))
+                .and_then(|bindings| bindings.get(&self.current_sequence))
+            {
+                return Some(action.clone());
+            } else if let Some(action) = mode_bindings
+                .get(&None)
+                .and_then(|bindings| bindings.get(&self.current_sequence))
+            {
+                return Some(action.clone());
+            }
+        }
+        None
     }
 
     fn handle_command_mode(&self, key_binding: Keybinding) -> Option<Action> {
         match key_binding.key {
-            KeyCode::Char(c)   => Some(Action::InsertChar(c)),
+            KeyCode::Char(c) => Some(Action::InsertChar(c)),
             KeyCode::Backspace => Some(Action::DeleteChar),
-            _                  => self.mode_bindings
-                                      .get(&Mode::Command)
-                                      .and_then(|bindings| bindings.get(&self.current_sequence).cloned()),
+            _ => {
+                if let Some(mode_bindings) = self.mode_bindings.get(&self.current_mode) {
+                    if let Some(action) = mode_bindings
+                        .get(&Some(self.current_buffer_kind.clone()))
+                        .and_then(|bindings| bindings.get(&self.current_sequence))
+                    {
+                        return Some(action.clone());
+                    } else if let Some(action) = mode_bindings
+                        .get(&None)
+                        .and_then(|bindings| bindings.get(&self.current_sequence))
+                    {
+                        return Some(action.clone());
+                    }
+                }
+                None
+            }
         }
     }
 
@@ -373,27 +511,26 @@ impl KeybindingManager {
         self.current_mode = mode;
     }
 
-    /// Returns the keybinding manager's mode
-    pub fn get_current_mode(&self) -> &Mode {
-        &self.current_mode
+    /// Sets the keybinding manager's mode
+    pub fn set_buffer_kind(&mut self, kind: BufferKind) {
+        self.current_buffer_kind = kind;
     }
 }
 
 impl CommandParser {
     pub fn parse(input: String, state: CommandLineState) -> Vec<Action> {
         match state {
-            CommandLineState::Default => {
-                input.chars()
-                    .map(|c| match c {
-                        'w' => Action::WriteBuffer,
-                        'q' => Action::Quit,
-                        _   => Action::Nop,
-                    })
-                    .collect()
-            },
-            CommandLineState::FindFile     => vec![ Action::OpenFile(input) ],
-            CommandLineState::SwitchBuffer => vec![ Action::SwitchBuffer(input) ],
-            _ => vec![ ],
+            CommandLineState::Default => input
+                .chars()
+                .map(|c| match c {
+                    'w' => Action::WriteBuffer,
+                    'q' => Action::Quit,
+                    _ => Action::Nop,
+                })
+                .collect(),
+            CommandLineState::FindFile => vec![Action::OpenFile(input)],
+            CommandLineState::SwitchBuffer => vec![Action::SwitchBuffer(input)],
+            _ => vec![],
         }
     }
 }

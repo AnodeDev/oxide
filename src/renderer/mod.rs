@@ -1,5 +1,5 @@
-pub mod renderer;
 pub mod error;
+pub mod renderer;
 
-pub use renderer::*;
 pub use error::*;
+pub use renderer::*;

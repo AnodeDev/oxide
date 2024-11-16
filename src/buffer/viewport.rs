@@ -6,10 +6,7 @@ pub struct Viewport {
 
 impl Viewport {
     pub fn new(height: usize) -> Self {
-        Viewport {
-            top: 0,
-            height,
-        }
+        Viewport { top: 0, height }
     }
 
     pub fn bottom(&self) -> usize {
@@ -28,4 +25,3 @@ impl Viewport {
         }
     }
 }
-

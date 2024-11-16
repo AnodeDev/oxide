@@ -1,5 +1,5 @@
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 use crate::buffer::{Cursor, Error};
 
@@ -45,14 +45,16 @@ impl CommandLineManager {
                         Ok(content) => {
                             let mut content_filtered: Vec<&PathBuf> = content
                                 .iter()
-                                .filter(|path| path.to_string_lossy().into_owned().contains(&self.suffix))
+                                .filter(|path| {
+                                    path.to_string_lossy().into_owned().contains(&self.suffix)
+                                })
                                 .collect();
 
                             content_filtered.sort();
 
                             let directories: Vec<&PathBuf> = content_filtered
                                 .iter()
-                               .filter(|entry| entry.is_dir())
+                                .filter(|entry| entry.is_dir())
                                 .map(|path| *path)
                                 .collect();
                             let files: Vec<&PathBuf> = content_filtered
@@ -102,10 +104,10 @@ impl CommandLineManager {
                                     path.pop();
                                 }
                             }
-                        },
+                        }
                         Err(e) => return Err(Error::IoError(e)),
                     }
-                },
+                }
                 Err(e) => return Err(Error::IoError(e)),
             }
         }
@@ -140,26 +142,29 @@ impl CommandLineManager {
         // Checks if cursor is moved horiozontally.
         // If not, it checks if x is larger than the current lines length and adjusts accordingly.
         if x != 0 {
-            let current_line_len = self.input.len();
-            let new_x = (self.cursor.x as i32 + x).clamp(1, current_line_len as i32 + 1) as usize;
+            let current_line_len = self.prefix.len() + self.input.len() + self.suffix.len();
+            let new_x = (self.cursor.x as i32 + x)
+                .clamp(self.prefix.len() as i32, current_line_len as i32) as usize;
 
             self.cursor.x = new_x;
             self.cursor.desired_x = new_x;
         }
     }
     pub fn add_char(&mut self, character: char) -> Result<()> {
-        if self.state == CommandLineState::Default {
-            self.input.insert(self.cursor.x - self.prefix.len(), character);
+        if self.state == CommandLineState::Default || self.state == CommandLineState::SwitchBuffer {
+            self.input
+                .insert(self.cursor.x - self.prefix.len(), character);
             self.cursor.x += 1;
-        } else if self.state == CommandLineState::SwitchBuffer {
-            self.suffix.insert(self.cursor.x - self.prefix.len() - self.input.len(), character);
-            self.cursor.x += 1;
-
         } else if self.state == CommandLineState::FindFile {
-            self.suffix.insert(self.cursor.x - self.prefix.len() - self.input.len(), character);
+            self.suffix.insert(
+                self.cursor.x - self.prefix.len() - self.input.len(),
+                character,
+            );
             self.cursor.x += 1;
 
-            if self.suffix.chars().last() == Some('/') && Path::new(&format!("{}{}", self.input, self.suffix)).exists() {
+            if self.suffix.chars().last() == Some('/')
+                && Path::new(&format!("{}{}", self.input, self.suffix)).exists()
+            {
                 self.input.push_str(&self.suffix);
                 self.suffix = String::new();
                 self.cursor.y = 0;
@@ -173,7 +178,9 @@ impl CommandLineManager {
         Ok(())
     }
     pub fn remove_char(&mut self) -> Result<()> {
-        if self.cursor.x >= self.prefix.len() + 1 && self.cursor.x - (self.prefix.len() + 1) - self.suffix.len() < self.input.len() {
+        if self.cursor.x >= self.prefix.len() + 1
+            && self.cursor.x - (self.prefix.len() + 1) - self.suffix.len() < self.input.len()
+        {
             if self.state == CommandLineState::FindFile && self.suffix.is_empty() {
                 let path = Path::new(&self.input);
 
@@ -188,13 +195,13 @@ impl CommandLineManager {
                     self.input = "/".to_string();
                 }
 
-
                 self.cursor.x = self.prefix.len() + self.input.len();
                 self.cursor.y = 0;
             } else if self.state == CommandLineState::FindFile {
-                self.suffix.remove(self.cursor.x - (self.prefix.len() + 1) - self.input.len());
+                self.suffix
+                    .remove(self.cursor.x - (self.prefix.len() + 1) - self.input.len());
                 self.cursor.x -= 1;
-            } else  {
+            } else {
                 self.input.remove(self.cursor.x - (self.prefix.len() + 1));
                 self.cursor.x -= 1;
             }

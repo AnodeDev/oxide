@@ -1,5 +1,5 @@
-use log::info;
 use fern::Dispatch;
+use log::info;
 
 use crate::utils::{Error, ErrorKind};
 
@@ -12,22 +12,24 @@ pub fn setup_logger() -> Result<'static, ()> {
                 .chain(file)
                 .level(log::LevelFilter::Debug)
                 .format(|out, message, record| {
-                    out.finish(format_args!(
-                        "[{}] {}",
-                        record.level(),
-                        message,
-                    ))
+                    out.finish(format_args!("[{}] {}", record.level(), message,))
                 })
-                .apply() {
+                .apply()
+            {
                 Ok(_) => {
                     info!("Logger setup");
 
                     Ok(())
-                },
-                Err(_) => Err(Error::new(ErrorKind::LogInitError, "Failed to initiate logging".to_string())),
+                }
+                Err(_) => Err(Error::new(
+                    ErrorKind::LogInitError,
+                    "Failed to initiate logging".to_string(),
+                )),
             }
-
-        },
-        Err(_) => Err(Error::new(ErrorKind::LogInitError, "Failed to open/create log file".to_string())),
+        }
+        Err(_) => Err(Error::new(
+            ErrorKind::LogInitError,
+            "Failed to open/create log file".to_string(),
+        )),
     }
 }
