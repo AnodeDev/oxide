@@ -1,7 +1,6 @@
 use ratatui::prelude::*;
 use ratatui::Terminal;
 
-use std::cell::{Ref, RefMut, RefCell};
 use std::rc::Rc;
 use std::io::Stdout;
 
@@ -14,7 +13,7 @@ type Result<T> = std::result::Result<T, crate::OxideError>;
 
 /// Holds all the editor states
 pub struct Editor {
-    pub buffers: Vec<Rc<RefCell<Buffer>>>,
+    pub buffers: Vec<Buffer>,
     pub active_buffer: usize,
     pub renderer: Renderer,
     pub is_running: bool
@@ -26,30 +25,32 @@ impl Editor {
         let height   = renderer.get_terminal_size().height as usize;
 
         Editor {
-            buffers: vec![Buffer::scratch(height)],
+            buffers: vec![ Buffer::scratch(height) ],
             active_buffer: 0,
             renderer,
             is_running: true,
         }
     }
 
-    pub fn add_buffer(&mut self, buffer: Rc<RefCell<Buffer>>) {
+    pub fn add_buffer(&mut self, buffer: Buffer) {
         self.buffers.push(buffer);
     }
 
     /// Borrows the current buffer
-    pub fn get_active_buffer(&self) -> Ref<Buffer> {
-        self.buffers[self.active_buffer].borrow()
+    pub fn get_active_buffer(&self) -> &Buffer {
+        &self.buffers[self.active_buffer]
     }
 
     /// Borrows the current buffer as mutable
-    pub fn get_active_buffer_mut(&self) -> RefMut<Buffer> {
-        self.buffers[self.active_buffer].borrow_mut()
+    pub fn get_active_buffer_mut(&mut self) -> &mut Buffer {
+        &mut self.buffers[self.active_buffer]
     }
 
     /// Calls the rendering function to not borrow past the editor's lifetime
     pub fn render(&mut self) -> Result<()> {
-        match self.renderer.render(self.buffers[self.active_buffer].borrow()) {
+        let buffer = &self.buffers[self.active_buffer];
+
+        match self.renderer.render(buffer) {
             Ok(_) => {},
             Err(e) => {
                 eprintln!("ERROR: {}", e);
@@ -60,13 +61,13 @@ impl Editor {
     }
 
     fn switch_buffer(&mut self) {
-        let cmd_content = self.buffers.iter().map(|buffer| buffer.borrow().title.clone()).collect();
+        let cmd_content = self.buffers.iter().map(|buffer| buffer.title.clone()).collect();
 
         self.get_active_buffer_mut().switch_buffer(cmd_content);
     }
 
     /// Parses the keybinding and executes the corresponding action
-    pub fn parse_action(&mut self, action: Action,keybinding_manager: &RefCell<KeybindingManager>, tokio_runtime: &tokio::runtime::Runtime) -> Result<()> {
+    pub fn parse_action(&mut self, action: Action,keybinding_manager: &KeybindingManager, tokio_runtime: &tokio::runtime::Runtime) -> Result<()> {
         match action {
             Action::SwitchMode(mode)         => self.get_active_buffer_mut().switch_mode(mode),
             Action::InsertChar(c)            => {
@@ -123,7 +124,7 @@ impl Editor {
                 self.switch_buffer();
             },
             Action::SwitchBuffer(buffer) => {
-                if let Some(index) = self.buffers.iter().position(|b| b.borrow().title == buffer) {
+                if let Some(index) = self.buffers.iter().position(|b| b.title == buffer) {
                     self.active_buffer = index;
                 }
             },

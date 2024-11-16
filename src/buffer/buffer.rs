@@ -134,8 +134,8 @@ impl Buffer {
 
     /// The scratch buffer is similar to the one in Emacs, it's an unbound buffer where the user.
     /// can write stuff and it won't be saved to a file.
-    pub fn scratch(height: usize) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Buffer {
+    pub fn scratch(height: usize) -> Self {
+        Buffer {
             title: "*Scratch*".to_string(),
             content: vec![
                 "This is the scratch buffer".to_string(),
@@ -151,10 +151,10 @@ impl Buffer {
             command_line: CommandLineManager::default(),
             visual_start: None,
             visual_end: None,
-        }))
+        }
     }
 
-    pub async fn from_file(path_str: &'static str, height: usize) -> Result<Rc<RefCell<Self>>> {
+    pub async fn from_file(path_str: &'static str, height: usize) -> Result<Self> {
         let mut path = PathBuf::new();
         let mut content = String::new();
 
@@ -177,7 +177,7 @@ impl Buffer {
             file_name = name_osstr.to_string_lossy().into_owned();
         }
 
-        Ok(Rc::new(RefCell::new(Buffer {
+        Ok(Buffer {
             title: file_name,
             content: content.split("\n").map(|line| line.to_string()).collect(),
             source: ContentSource::File(path),
@@ -188,7 +188,7 @@ impl Buffer {
             command_line: CommandLineManager::default(),
             visual_start: None,
             visual_end: None,
-        })))
+        })
     }
 
     /// Saves to a file.

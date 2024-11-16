@@ -6,7 +6,6 @@ use ratatui::widgets::{Block, Paragraph};
 use ratatui::style::{Color, Style};
 
 use std::io::Stdout;
-use std::cell::Ref;
 use std::path::Path;
 
 use crate::buffer::{Buffer, CommandLineState, Cursor, Mode};
@@ -25,7 +24,7 @@ impl Renderer {
     }
 
     /// Renders the current buffer
-    pub fn render(&mut self, buffer: Ref<Buffer>) -> Result<'static, ()> {
+    pub fn render(&mut self, buffer: &Buffer) -> Result<'static, ()> {
         let mut lines: Vec<Line> = Vec::new();
         let mut nums: Vec<Line> = Vec::new();
         let mut formatted_cmd_content: Vec<Line> = Vec::new();

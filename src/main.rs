@@ -18,13 +18,13 @@ fn main() -> Result<()> {
 
     // Initializes core components
     let terminal = ratatui::init();
-    let editor = RefCell::new(Editor::new(terminal));
+    let mut editor = Editor::new(terminal);
     let tokio_runtime = match tokio::runtime::Runtime::new() {
         Ok(runtime) => runtime,
         Err(e) => return Err(OxideError::new(oxide::ErrorKind::ExternError(e))),
     };
-    let keybinding_manager = RefCell::new(KeybindingManager::new());
-    let terminal_height = editor.borrow().renderer.get_terminal_size().height as usize;
+    let mut keybinding_manager = KeybindingManager::new();
+    let terminal_height = editor.renderer.get_terminal_size().height as usize;
 
     // Test file (change to the directory of your choice)
     let file_path   = "/home/dexter/Personal/Programming/Rust/oxide/test.txt";
@@ -36,32 +36,28 @@ fn main() -> Result<()> {
             return Err(oxide::OxideError::new(oxide::ErrorKind::BufferError(e)));
         }
     };
-    editor.borrow_mut().add_buffer(file_buffer);
+    editor.add_buffer(file_buffer);
 
-    editor.borrow_mut().active_buffer = 1;
+    editor.active_buffer = 1;
 
     // Main loop
-    while editor.borrow().is_running {
+    while editor.is_running {
         // Renders the buffer and makes sure the keybinding manager has the correct mode set
-        match editor.borrow_mut().render() {
+        match editor.render() {
             Ok(_) => {},
             Err(e) => return Err(e),
         };
         keybinding_manager
-            .borrow_mut()
-            .set_mode(editor.borrow().get_active_buffer().mode);
+            .set_mode(editor.get_active_buffer().mode);
 
         // Checks the user keypresses
         match event::read() {
             Ok(event) => match event {
                 Event::Key(key_event) => {
                     let input_result = keybinding_manager
-                        .borrow_mut()
                         .handle_input(key_event);
 
                     if let Some(action) = input_result {
-                        let mut editor = editor.borrow_mut();
-
                         match editor.parse_action(action, &keybinding_manager, &tokio_runtime) {
                             Ok(_) => {},
                             Err(e) => {
