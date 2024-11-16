@@ -10,10 +10,13 @@ use crate::keybinding::{Action, InsertDirection, ModeParams, NewLineDirection};
 type Result<T> = std::result::Result<T, Error>;
 
 /// Handles buffer manipulation.
-pub trait Manipulation {
+pub trait Navigation {
     fn move_cursor(&mut self, x: i32, y: i32);
     fn move_cursor_to_top(&mut self);
     fn move_cursor_to_bot(&mut self);
+}
+
+pub trait Manipulation {
     fn add_char(&mut self, character: char) -> Result<()>;
     fn new_line(&mut self, direction: NewLineDirection);
     fn remove_char(&mut self) -> Result<()>;
@@ -53,7 +56,6 @@ pub struct Cursor {
     pub x: usize,
     pub y: usize,
     pub desired_x: usize, // If line is shorter than x, the original x is stored here.
-    pub desired_y: usize, // If cursor is moved, ex to command line, y is stored here.
 }
 
 /// The state of the buffer.
@@ -165,7 +167,7 @@ impl Buffer {
     pub fn buffer_list(height: usize) -> Self {
         Buffer {
             title: "*Buffers*".to_string(),
-            content: vec![String::new()],
+            content: vec![ String::new() ],
             path: None,
             kind: BufferKind::BufferList,
             cursor: Cursor::default(),
@@ -192,10 +194,11 @@ impl Buffer {
         if let Some(name_osstr) = Path::new(path_str).file_name() {
             file_name = name_osstr.to_string_lossy().into_owned();
         }
+        let content: Vec<String> = content.split("\n").map(|line| line.to_string()).collect();
 
         Ok(Buffer {
             title: file_name,
-            content: content.split("\n").map(|line| line.to_string()).collect(),
+            content,
             path: Some(path),
             kind: BufferKind::Normal,
             cursor: Cursor::default(),
@@ -478,7 +481,7 @@ impl Buffer {
     }
 }
 
-impl Manipulation for Buffer {
+impl Navigation for Buffer {
     fn move_cursor(&mut self, x: i32, y: i32) {
         match self.mode {
             Mode::Normal | Mode::Visual => {
@@ -510,7 +513,6 @@ impl Manipulation for Buffer {
                     visual_end.x = self.cursor.x;
                     visual_end.y = self.cursor.y;
                     visual_end.desired_x = self.cursor.desired_x;
-                    visual_end.desired_y = self.cursor.desired_y;
                 }
             }
             Mode::Command => {
@@ -533,7 +535,9 @@ impl Manipulation for Buffer {
 
         self.viewport.adjust(self.cursor.y, self.content.len());
     }
+}
 
+impl Manipulation for Buffer {
     /// Adds a character to the buffer or the command line.
     fn add_char(&mut self, character: char) -> Result<()> {
         // Minimizes repetetive code by editing the current line from either source.

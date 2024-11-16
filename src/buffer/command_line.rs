@@ -181,34 +181,36 @@ impl CommandLineManager {
         if self.cursor.x >= self.prefix.len() + 1
             && self.cursor.x - (self.prefix.len() + 1) - self.suffix.len() < self.input.len()
         {
-            if self.state == CommandLineState::FindFile && self.suffix.is_empty() {
-                let path = Path::new(&self.input);
+            if self.state == CommandLineState::FindFile {
+                if self.suffix.is_empty() {
+                    let path = Path::new(&self.input);
 
-                let mut path = path.to_path_buf();
+                    let mut path = path.to_path_buf();
 
-                path.pop();
+                    path.pop();
 
-                let path_str = path.to_string_lossy().into_owned();
-                if path_str != "/".to_string() {
-                    self.input = format!("{}/", path_str);
+                    let path_str = path.to_string_lossy().into_owned();
+                    if path_str != "/".to_string() {
+                        self.input = format!("{}/", path_str);
+                    } else {
+                        self.input = "/".to_string();
+                    }
+
+                    self.cursor.x = self.prefix.len() + self.input.len();
+                    self.cursor.y = 0;
                 } else {
-                    self.input = "/".to_string();
+                    self.suffix
+                        .remove(self.cursor.x - (self.prefix.len() + 1) - self.input.len());
+                    self.cursor.x -= 1;
                 }
 
-                self.cursor.x = self.prefix.len() + self.input.len();
-                self.cursor.y = 0;
-            } else if self.state == CommandLineState::FindFile {
-                self.suffix
-                    .remove(self.cursor.x - (self.prefix.len() + 1) - self.input.len());
-                self.cursor.x -= 1;
+                let tokio_runtime = tokio::runtime::Runtime::new()?;
+
+                tokio_runtime.block_on(self.load_directory())?;
             } else {
                 self.input.remove(self.cursor.x - (self.prefix.len() + 1));
                 self.cursor.x -= 1;
             }
-
-            let tokio_runtime = tokio::runtime::Runtime::new()?;
-
-            tokio_runtime.block_on(self.load_directory())?;
         }
 
         Ok(())

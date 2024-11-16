@@ -3,7 +3,7 @@ use ratatui::Terminal;
 
 use std::io::Stdout;
 
-use crate::buffer::{Buffer, BufferKind, Manipulation, Mode};
+use crate::buffer::{Buffer, BufferKind, Navigation, Manipulation, Mode};
 use crate::keybinding::{Action, CommandParser, KeybindingManager, ModeParams};
 use crate::renderer::Renderer;
 use crate::OxideError;
@@ -133,10 +133,12 @@ impl Editor {
                 self.switch_buffer();
             }
             Action::SwitchBuffer(buffer) => {
-                self.get_active_buffer_mut().switch_mode(ModeParams::Normal { mode: Mode::Normal });
-
                 if let Some(index) = self.buffers.iter().position(|b| b.title == buffer) {
+                    self.get_active_buffer_mut().switch_mode(ModeParams::Normal { mode: Mode::Normal });
+
                     self.active_buffer = index;
+                } else {
+                    self.switch_buffer();
                 }
             }
             Action::AppendSelected => self.get_active_buffer_mut().append_selected()?,

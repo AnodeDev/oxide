@@ -30,10 +30,7 @@ fn main() -> Result<()> {
     // Main loop
     while editor.is_running {
         // Renders the buffer and makes sure the keybinding manager has the correct mode set
-        match editor.render() {
-            Ok(_) => {}
-            Err(e) => return Err(e),
-        };
+        editor.render()?;
         keybinding_manager.set_mode(editor.get_active_buffer().mode);
         keybinding_manager.set_buffer_kind(editor.get_active_buffer().kind);
 
