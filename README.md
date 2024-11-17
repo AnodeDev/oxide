@@ -28,6 +28,7 @@ For UI I want to use [ratatui](https://github.com/ratatui/ratatui), since it mak
 
 - [x] Make the basic editor with buffer system :)
 - [x] Implement the modal system + keybinding system
+- [ ] Rework rendering with proper lexing + syntax highlighting
 - [ ] Delta buffer storage + async write-back
 - [ ] Async package manager
 - [ ] Async buffer compression and decompression

@@ -3,6 +3,7 @@ pub mod editor;
 pub mod error;
 pub mod keybinding;
 pub mod renderer;
+pub mod syntax_highlighting;
 pub mod utils;
 
 pub use error::*;

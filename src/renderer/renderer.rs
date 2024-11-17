@@ -1,3 +1,13 @@
+/*
+* TODO: Rework the rendering of the buffer.
+*
+* It needs to be more generic to be able to render whatever the user requires, since I plan on
+* writing plugins that act like Telescope.nvim.
+*
+* I also need to rework how the text is supplied, since I want to be able to implement syntax
+* highlighting.
+*/
+
 use ratatui::layout::{Constraint, Layout};
 use ratatui::prelude::*;
 use ratatui::style::{Color, Style};
