@@ -1,5 +1,6 @@
 use crate::buffer;
 use crate::renderer;
+use crate::lexer;
 use crate::utils;
 
 use std::fmt;
@@ -8,6 +9,7 @@ use std::fmt;
 pub enum OxideError {
     BufferError(buffer::Error),
     RendererError(renderer::Error),
+    LexerError(lexer::Error),
     UtilsError(utils::Error),
     IoError(std::io::Error),
 }
@@ -30,6 +32,12 @@ impl From<renderer::Error> for OxideError {
     }
 }
 
+impl From<lexer::Error> for OxideError {
+    fn from(error: lexer::Error) -> Self {
+        OxideError::LexerError(error)
+    }
+}
+
 impl From<utils::Error> for OxideError {
     fn from(error: utils::Error) -> Self {
         OxideError::UtilsError(error)
@@ -43,6 +51,7 @@ impl fmt::Display for OxideError {
         match self {
             OxideError::BufferError(e) => write!(f, "ERROR: {}", e),
             OxideError::RendererError(e) => write!(f, "ERROR: {}", e),
+            OxideError::LexerError(e) => write!(f, "ERROR: {}", e),
             OxideError::UtilsError(e) => write!(f, "ERROR: {}", e),
             OxideError::IoError(e) => write!(f, "ERROR: {}", e),
         }

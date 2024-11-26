@@ -291,7 +291,7 @@ impl KeybindingManager {
         self.add_binding(
             Mode::Visual,
             None,
-            vec![(KeyCode::Char('d'), KeyModifiers::NONE)],
+            vec![(KeyCode::Char('x'), KeyModifiers::NONE)],
             Action::DeleteChar,
         );
 

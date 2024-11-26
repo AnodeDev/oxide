@@ -6,7 +6,7 @@ use std::io::Stdout;
 use crate::buffer::{Buffer, BufferKind, Navigation, Manipulation, Mode};
 use crate::keybinding::{Action, CommandParser, KeybindingManager, ModeParams};
 use crate::renderer::Renderer;
-use crate::OxideError;
+use crate::lexer::{Lexer, load_language_definition};
 
 type Result<T> = std::result::Result<T, crate::OxideError>;
 
@@ -64,6 +64,9 @@ impl Editor {
     /// Calls the rendering function to not borrow past the editor's lifetime
     pub fn render(&mut self) -> Result<()> {
         let buffer = &self.buffers[self.active_buffer];
+        let lang_def = load_language_definition("/home/dexter/Personal/Programming/Rust/oxide/src/lexer/rust_lang_def.toml")?;
+
+        let lexer = Lexer::new(buffer.content.iter().map(|line| line.as_str()).collect(), lang_def);
 
         match self.renderer.render(buffer) {
             Ok(_) => {}
@@ -94,20 +97,14 @@ impl Editor {
     ) -> Result<()> {
         match action {
             Action::SwitchMode(mode) => self.get_active_buffer_mut().switch_mode(mode),
-            Action::InsertChar(c) => match self.get_active_buffer_mut().add_char(c) {
-                Ok(_) => {}
-                Err(e) => return Err(OxideError::BufferError(e)),
-            },
+            Action::InsertChar(c) => self.get_active_buffer_mut().add_char(c)?,
             Action::NewLine(direction) => self.get_active_buffer_mut().new_line(direction),
             Action::DeleteLine => self.get_active_buffer_mut().delete_line(),
             Action::MoveCursor(x, y) => self.get_active_buffer_mut().move_cursor(x, y),
             Action::TopOfBuffer => self.get_active_buffer_mut().move_cursor_to_top(),
             Action::EndOfBuffer => self.get_active_buffer_mut().move_cursor_to_bot(),
             Action::Quit => self.is_running = false,
-            Action::DeleteChar => match self.get_active_buffer_mut().remove_char() {
-                Ok(_) => {}
-                Err(e) => return Err(OxideError::BufferError(e)),
-            },
+            Action::DeleteChar => self.get_active_buffer_mut().remove_char()?,
             Action::WriteBuffer => {
                 tokio_runtime.block_on(self.get_active_buffer_mut().write_buffer())?;
             }
