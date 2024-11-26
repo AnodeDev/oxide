@@ -24,6 +24,10 @@ I want to implement a really memory-efficient buffer system, and I settled on th
 
 For UI I want to use [ratatui](https://github.com/ratatui/ratatui), since it makes it really easy to make cool UI systems for floating windows and such.
 
+## Current Status
+
+I'm currently working on implementing syntax highlighting as well as a better way to render text in general, as well as the markup language for this editor, [redox](https://github.com/AnodeDev/redox), which will be one method of configuring the editor. The markup language is of course inspired by Emacs' Org Mode
+
 ## Roadmap
 
 - [x] Make the basic editor with buffer system :)
