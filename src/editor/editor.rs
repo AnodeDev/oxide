@@ -3,7 +3,7 @@ use ratatui::Terminal;
 
 use std::io::Stdout;
 
-use crate::buffer::{Buffer, BufferKind, Navigation, Manipulation, Mode};
+use crate::buffer::{Buffer, BufferKind, Manipulation, Mode, Navigation};
 use crate::keybinding::{Action, CommandParser, KeybindingManager, ModeParams};
 use crate::renderer::Renderer;
 use crate::OxideError;
@@ -98,6 +98,10 @@ impl Editor {
                 Ok(_) => {}
                 Err(e) => return Err(OxideError::BufferError(e)),
             },
+            Action::InsertTab => match self.get_active_buffer_mut().add_tab() {
+                Ok(_) => {}
+                Err(e) => return Err(OxideError::BufferError(e)),
+            },
             Action::NewLine(direction) => self.get_active_buffer_mut().new_line(direction),
             Action::DeleteLine => self.get_active_buffer_mut().delete_line(),
             Action::MoveCursor(x, y) => self.get_active_buffer_mut().move_cursor(x, y),
@@ -134,7 +138,8 @@ impl Editor {
             }
             Action::SwitchBuffer(buffer) => {
                 if let Some(index) = self.buffers.iter().position(|b| b.title == buffer) {
-                    self.get_active_buffer_mut().switch_mode(ModeParams::Normal { mode: Mode::Normal });
+                    self.get_active_buffer_mut()
+                        .switch_mode(ModeParams::Normal { mode: Mode::Normal });
 
                     self.active_buffer = index;
                 } else {
@@ -143,10 +148,10 @@ impl Editor {
             }
             Action::AppendSelected => self.get_active_buffer_mut().append_selected()?,
             Action::Select => {
-                if let Some(action) =  self.get_active_buffer_mut().select_entry()? {
+                if let Some(action) = self.get_active_buffer_mut().select_entry()? {
                     self.parse_action(action, keybinding_manager, tokio_runtime)?;
                 }
-            },
+            }
             _ => {}
         };
 

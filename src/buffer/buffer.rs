@@ -18,6 +18,7 @@ pub trait Navigation {
 
 pub trait Manipulation {
     fn add_char(&mut self, character: char) -> Result<()>;
+    fn add_tab(&mut self) -> Result<()>;
     fn new_line(&mut self, direction: NewLineDirection);
     fn remove_char(&mut self) -> Result<()>;
     fn delete_line(&mut self);
@@ -167,7 +168,7 @@ impl Buffer {
     pub fn buffer_list(height: usize) -> Self {
         Buffer {
             title: "*Buffers*".to_string(),
-            content: vec![ String::new() ],
+            content: vec![String::new()],
             path: None,
             kind: BufferKind::BufferList,
             cursor: Cursor::default(),
@@ -473,7 +474,9 @@ impl Buffer {
 
     pub fn select_entry(&mut self) -> Result<Option<Action>> {
         let return_type = match self.kind {
-            BufferKind::BufferList => Some(Action::SwitchBuffer(self.content[self.cursor.y].clone())),
+            BufferKind::BufferList => {
+                Some(Action::SwitchBuffer(self.content[self.cursor.y].clone()))
+            }
             BufferKind::Normal => None,
         };
 
@@ -552,6 +555,20 @@ impl Manipulation for Buffer {
             // If user is in normal- or visual mode, something is wrong.
             Mode::Normal | Mode::Visual => return Err(Error::WrongModeError),
         };
+
+        Ok(())
+    }
+
+    fn add_tab(&mut self) -> Result<()> {
+        let mut spaces = 4;
+
+        while (self.cursor.x + spaces) % 4 != 0 {
+            spaces -= 1;
+        }
+
+        for _ in 0..spaces {
+            self.add_char(' ')?;
+        }
 
         Ok(())
     }

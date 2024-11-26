@@ -144,7 +144,8 @@ impl CommandLineManager {
         if x != 0 {
             let current_line_len = self.prefix.len() + self.input.len() + self.suffix.len();
             let new_x = (self.cursor.x as i32 + x)
-                .clamp(self.prefix.len() as i32, current_line_len as i32) as usize;
+                .clamp(self.prefix.len() as i32, current_line_len as i32)
+                as usize;
 
             self.cursor.x = new_x;
             self.cursor.desired_x = new_x;

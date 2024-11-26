@@ -10,6 +10,7 @@ pub enum Action {
     Nop,
     SwitchMode(ModeParams),
     InsertChar(char),
+    InsertTab,
     NewLine(NewLineDirection),
     DeleteChar,
     DeleteLine,
@@ -298,6 +299,13 @@ impl KeybindingManager {
         self.add_binding(
             Mode::Visual,
             None,
+            vec![(KeyCode::Char('x'), KeyModifiers::NONE)],
+            Action::DeleteChar,
+        );
+
+        self.add_binding(
+            Mode::Visual,
+            None,
             vec![(KeyCode::Esc, KeyModifiers::NONE)],
             Action::SwitchMode(ModeParams::Normal { mode: Mode::Normal }),
         );
@@ -445,6 +453,7 @@ impl KeybindingManager {
     fn handle_insert_mode(&self, key_binding: Keybinding) -> Option<Action> {
         match key_binding.key {
             KeyCode::Char(c) => Some(Action::InsertChar(c)),
+            KeyCode::Tab => Some(Action::InsertTab),
             KeyCode::Backspace => Some(Action::DeleteChar),
             KeyCode::Enter => Some(Action::NewLine(NewLineDirection::Under)),
             _ => {
