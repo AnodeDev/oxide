@@ -129,8 +129,6 @@ impl CommandLineManager {
 
         self.state = CommandLineState::Error;
         self.prefix = error_msg;
-
-        log::info!("COMMAND LINE: {}", self.prefix);
     }
 
     pub fn move_cursor(&mut self, x: i32, y: i32) {

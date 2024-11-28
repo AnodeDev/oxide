@@ -1,4 +1,6 @@
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use std::fmt;
+use std::write;
 
 use std::collections::HashMap;
 
@@ -62,9 +64,21 @@ pub enum InsertDirection {
 }
 
 /// Stores the users currently pressed keys
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Debug)]
 pub struct KeySequence {
     pub keys: Vec<Keybinding>,
+}
+
+impl fmt::Display for KeySequence {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "Key Sequence:");
+
+        for key in &self.keys {
+            writeln!(f, "    {}", key);
+        }
+
+        write!(f, "")
+    }
 }
 
 /// Stores the key information for ease of access
@@ -72,6 +86,12 @@ pub struct KeySequence {
 pub struct Keybinding {
     pub key: KeyCode,
     pub modifiers: KeyModifiers,
+}
+
+impl fmt::Display for Keybinding {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "KEY: '{}' - MODIFIER: '{}'", self.key, self.modifiers)
+    }
 }
 
 /// Stores all available keybindings as well as the currently pressed one
@@ -411,21 +431,27 @@ impl KeybindingManager {
             action
         } else {
             if let Some(mode_bindings) = self.mode_bindings.get(&self.current_mode) {
-                if !mode_bindings
-                    .get(&Some(self.current_buffer_kind))
-                    .map(|bindings| {
-                        bindings
+                let mut sequence_matches = false;
+
+                // Checks if keybinding exists in any buffer kind
+                if let Some(bindings) = mode_bindings.get(&None) {
+                    sequence_matches = bindings
+                        .keys()
+                        .any(|seq| seq.keys.starts_with(&self.current_sequence.keys));
+                }
+
+                if !sequence_matches {
+                    // Checks if keybinding exists in the current buffer kind
+                    if let Some(bindings) = mode_bindings.get(&Some(self.current_buffer_kind)) {
+                        sequence_matches = bindings
                             .keys()
-                            .any(|seq| seq.keys.starts_with(&self.current_sequence.keys))
-                    })?
-                {
-                    if !mode_bindings.get(&None).map(|bindings| {
-                        bindings
-                            .keys()
-                            .any(|seq| seq.keys.starts_with(&self.current_sequence.keys))
-                    })? {
-                        self.current_sequence.keys.clear();
+                            .any(|seq| seq.keys.starts_with(&self.current_sequence.keys));
                     }
+                }
+
+                // If not, it clears the current key sequence
+                if !sequence_matches {
+                    self.current_sequence.keys.clear();
                 }
             }
 
@@ -447,6 +473,7 @@ impl KeybindingManager {
                 return Some(action.clone());
             }
         }
+
         None
     }
 
@@ -470,6 +497,7 @@ impl KeybindingManager {
                         return Some(action.clone());
                     }
                 }
+
                 None
             }
         }
@@ -489,6 +517,7 @@ impl KeybindingManager {
                 return Some(action.clone());
             }
         }
+
         None
     }
 
@@ -510,6 +539,7 @@ impl KeybindingManager {
                         return Some(action.clone());
                     }
                 }
+
                 None
             }
         }

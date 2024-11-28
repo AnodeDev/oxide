@@ -10,7 +10,7 @@ use crate::keybinding::{Action, InsertDirection, ModeParams};
 type Result<T> = std::result::Result<T, Error>;
 
 /// The different kinds of buffers.
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum BufferKind {
     Normal,
     BufferList,
