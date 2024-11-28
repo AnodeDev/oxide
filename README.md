@@ -1,5 +1,9 @@
 # OXIDE
 
+⚠️ VERY EARLY IN DEVELOPMENT! ⚠️
+
+Don't have any high expectations, right now I'm just building it for myself
+
 ## About
 
 This is my own terminal text editor that I built to work around the annoying rebinding experience of Neovim and Emacs.
