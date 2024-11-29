@@ -1,4 +1,4 @@
-/// The visible part of the buffer content
+// The visible part of the buffer content
 pub struct Viewport {
     pub top: usize,
     pub height: usize,

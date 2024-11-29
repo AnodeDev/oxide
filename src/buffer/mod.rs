@@ -1,3 +1,7 @@
+// ╭──────────────────────────────────────╮
+// │ Buffer Module                        │
+// ╰──────────────────────────────────────╯
+
 pub mod buffer;
 pub mod command_line;
 pub mod error;

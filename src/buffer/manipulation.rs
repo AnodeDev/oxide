@@ -12,8 +12,9 @@ pub trait Manipulation {
     fn delete_line(&mut self);
 }
 
+// TODO: Implement Manipulation for Command Line.
 impl Manipulation for Buffer {
-    /// Adds a character to the buffer or the command line.
+    // Adds a character to the buffer or the command line.
     fn add_char(&mut self, character: char) -> Result<()> {
         // Minimizes repetetive code by editing the current line from either source.
         match self.mode {
@@ -45,7 +46,7 @@ impl Manipulation for Buffer {
         Ok(())
     }
 
-    /// Inserts a new line either under or above the cursor.
+    // Inserts a new line either under or above the cursor.
     fn new_line(&mut self, direction: NewLineDirection) {
         match self.mode {
             Mode::Insert => {
@@ -75,7 +76,7 @@ impl Manipulation for Buffer {
         }
     }
 
-    /// Implements the remove character logic for all modes.
+    // Implements the remove character logic for all modes.
     fn remove_char(&mut self) -> Result<()> {
         match self.mode {
             Mode::Insert => {

@@ -3,7 +3,15 @@ use std::path::{Path, PathBuf};
 
 use crate::buffer::{Cursor, Error};
 
+// ╭──────────────────────────────────────╮
+// │ Command Line Types                   │
+// ╰──────────────────────────────────────╯
+
 type Result<T> = std::result::Result<T, Error>;
+
+// ╭──────────────────────────────────────╮
+// │ Command Line Enums                   │
+// ╰──────────────────────────────────────╯
 
 #[derive(Debug, Default, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum CommandLineState {
@@ -13,6 +21,10 @@ pub enum CommandLineState {
     SwitchBuffer,
     Error,
 }
+
+// ╭──────────────────────────────────────╮
+// │ Command Line Structs                 │
+// ╰──────────────────────────────────────╯
 
 #[derive(Default)]
 pub struct CommandLineManager {

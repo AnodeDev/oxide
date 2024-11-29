@@ -6,7 +6,11 @@ use std::collections::HashMap;
 
 use crate::buffer::{BufferKind, CommandLineState, Mode};
 
-/// Defines all the available actions
+// ╭──────────────────────────────────────╮
+// │ Keybinding Enums                     │
+// ╰──────────────────────────────────────╯
+
+// Defines all the available actions
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Action {
     Nop,
@@ -50,7 +54,7 @@ pub enum ModeParams {
     },
 }
 
-/// Defines where a new line can go
+// Defines where a new line can go
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum NewLineDirection {
     Under,
@@ -63,38 +67,24 @@ pub enum InsertDirection {
     After,
 }
 
-/// Stores the users currently pressed keys
+// ╭──────────────────────────────────────╮
+// │ Keybinding Structs                   │
+// ╰──────────────────────────────────────╯
+
+// Stores the users currently pressed keys
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct KeySequence {
     pub keys: Vec<Keybinding>,
 }
 
-impl fmt::Display for KeySequence {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "Key Sequence:");
-
-        for key in &self.keys {
-            writeln!(f, "    {}", key);
-        }
-
-        write!(f, "")
-    }
-}
-
-/// Stores the key information for ease of access
+// Stores the key information for ease of access
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct Keybinding {
     pub key: KeyCode,
     pub modifiers: KeyModifiers,
 }
 
-impl fmt::Display for Keybinding {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "KEY: '{}' - MODIFIER: '{}'", self.key, self.modifiers)
-    }
-}
-
-/// Stores all available keybindings as well as the currently pressed one
+// Stores all available keybindings as well as the currently pressed one
 pub struct KeybindingManager {
     mode_bindings: HashMap<Mode, HashMap<Option<BufferKind>, HashMap<KeySequence, Action>>>,
     current_mode: Mode,
@@ -102,7 +92,7 @@ pub struct KeybindingManager {
     current_sequence: KeySequence,
 }
 
-/// Handles parsing the command line commands
+// Handles parsing the command line commands
 pub struct CommandParser;
 
 impl KeybindingManager {
@@ -118,7 +108,7 @@ impl KeybindingManager {
         manager
     }
 
-    /// Defines all default keybindings
+    // Defines all default keybindings
     fn setup_default_bindings(&mut self) {
         // NORMAL MODE
         self.add_binding(
@@ -381,7 +371,7 @@ impl KeybindingManager {
         );
     }
 
-    /// Adds keybindings to the keybinding manager
+    // Adds keybindings to the keybinding manager
     pub fn add_binding(
         &mut self,
         mode: Mode,
@@ -406,8 +396,8 @@ impl KeybindingManager {
             .insert(sequence, action);
     }
 
-    /// Checks the mode of the keybinding and the current buffer mode and redirects to the
-    /// appropriate parser
+    // Checks the mode of the keybinding and the current buffer mode and redirects to the
+    // appropriate parser
     pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
         let key_binding = Keybinding {
             key: key_event.code,
@@ -545,12 +535,10 @@ impl KeybindingManager {
         }
     }
 
-    /// Sets the keybinding manager's mode
     pub fn set_mode(&mut self, mode: Mode) {
         self.current_mode = mode;
     }
 
-    /// Sets the keybinding manager's mode
     pub fn set_buffer_kind(&mut self, kind: BufferKind) {
         self.current_buffer_kind = kind;
     }

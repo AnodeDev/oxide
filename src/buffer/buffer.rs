@@ -7,9 +7,16 @@ use std::path::{Path, PathBuf};
 use crate::buffer::{CommandLineManager, CommandLineState, Error, Viewport};
 use crate::keybinding::{Action, InsertDirection, ModeParams};
 
+// ╭──────────────────────────────────────╮
+// │ Buffer Types                         │
+// ╰──────────────────────────────────────╯
+
 type Result<T> = std::result::Result<T, Error>;
 
-/// The different kinds of buffers.
+// ╭──────────────────────────────────────╮
+// │ Buffer Enums                         │
+// ╰──────────────────────────────────────╯
+
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum BufferKind {
     Normal,
@@ -36,7 +43,10 @@ impl fmt::Display for Mode {
     }
 }
 
-/// Stores the cursor position.
+// ╭──────────────────────────────────────╮
+// │ Buffer Structs                       │
+// ╰──────────────────────────────────────╯
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Cursor {
     pub x: usize,
@@ -44,18 +54,19 @@ pub struct Cursor {
     pub desired_x: usize, // If line is shorter than x, the original x is stored here.
 }
 
-/// The state of the buffer.
+// Holds the states of the buffer. These states tell the editor if the buffer can be edited and/or
+// closed.
 pub struct BufferState {
-    pub killable: bool, // If the buffer can be killed by the user or not.
-    pub mutable: bool,  // If the buffer can be mutated by the user or not.
+    pub killable: bool,
+    pub mutable: bool,
 }
 
-/// Implements some preset buffer states for code cleanliness.
 impl BufferState {
     pub fn new(killable: bool, mutable: bool) -> Self {
         BufferState { killable, mutable }
     }
 
+    // Buffer state presets for some commonly used buffers.
     pub fn scratch() -> Self {
         BufferState {
             killable: false,
@@ -80,7 +91,7 @@ impl std::default::Default for BufferState {
     }
 }
 
-/// Buffer holds the content from a specific source.
+// The main buffer struct. Holds all the information related to the buffer
 pub struct Buffer {
     pub title: String,
     pub content: Vec<String>,
@@ -95,8 +106,6 @@ pub struct Buffer {
     pub visual_end: Option<Cursor>,
 }
 
-/// Implements some preset buffers for code cleanliness.
-/// The functions returns RefCells to keep from having to clone the buffers when modifying them.
 impl Buffer {
     pub fn new(
         title: String,
@@ -127,8 +136,8 @@ impl Buffer {
         }
     }
 
-    /// The scratch buffer is similar to the one in Emacs, it's an unbound buffer where the user.
-    /// can write stuff and it won't be saved to a file.
+    // The scratch buffer is similar to the one in Emacs. It's a free buffer with no file to save
+    // to, meant to test configuration options (when that's available).
     pub fn scratch(height: usize) -> Self {
         Buffer {
             title: "*Scratch*".to_string(),
@@ -150,6 +159,8 @@ impl Buffer {
         }
     }
 
+    // The buffer list is similar to the one in Emacs. It's a list of the open buffers and when one
+    // is pressed the editor switches to that buffer.
     pub fn buffer_list(height: usize) -> Self {
         Buffer {
             title: "*Buffers*".to_string(),
@@ -173,6 +184,7 @@ impl Buffer {
         path.push(path_str);
         let file = File::open(path.clone())?;
         let mut buf_reader = BufReader::new(file);
+        // If it can't find the name of the file, it won't display an empty string
         let mut file_name = "[NO NAME]".to_string();
 
         buf_reader.read_to_string(&mut content)?;
@@ -197,11 +209,11 @@ impl Buffer {
         })
     }
 
-    /// Saves to a file.
-    /// Is async to not freeze the editor if it's a large file or something happens.
+    // Writes the buffer content to it's source file, if there is one. It's async as to not disable
+    // the editor in case something happens.
     pub async fn write_buffer(&mut self) -> Result<()> {
         if !self.state.mutable {
-            return Ok(());
+            return Err(Error::FileNotFoundError);
         }
 
         if let Some(path) = &self.path {
@@ -215,8 +227,6 @@ impl Buffer {
         Ok(())
     }
 
-    /// Switches the current mode.
-    /// Resets the appropriate values and applies the new parameters.
     pub fn switch_mode(&mut self, mode: ModeParams) {
         // Makes sure to reset the visual cursors and command line values
         match self.mode {
@@ -281,7 +291,6 @@ impl Buffer {
         command
     }
 
-    /// Loads a file from a path.
     pub async fn load_file(&mut self, path: String) -> Result<()> {
         // Checks if the path points to a file.
         if Path::new(&path).is_file() {
@@ -309,7 +318,6 @@ impl Buffer {
         }
     }
 
-    /// Starts the FindFile command.
     pub async fn find_file(&mut self) -> Result<()> {
         let stored_path = &mut self.path.clone();
 
@@ -423,7 +431,7 @@ impl Buffer {
         Ok(())
     }
 
-    /// Adds the currently selected entry to the command line.
+    // Appends the currently selected entry to the command line.
     pub fn append_selected(&mut self) -> Result<()> {
         if self.mode != Mode::Command {
             return Err(Error::WrongModeError);

@@ -5,7 +5,15 @@ use oxide::editor::Editor;
 use oxide::keybinding::{KeybindingManager, ModeParams};
 use oxide::utils::logging::setup_logger;
 
+// ╭──────────────────────────────────────╮
+// │ Types                                │
+// ╰──────────────────────────────────────╯
+
 type Result<T> = std::result::Result<T, oxide::OxideError>;
+
+// ╭──────────────────────────────────────╮
+// │ Main                                 │
+// ╰──────────────────────────────────────╯
 
 fn main() -> Result<()> {
     setup_logger()?;

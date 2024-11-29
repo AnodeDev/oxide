@@ -11,9 +11,17 @@ use std::path::Path;
 use crate::buffer::{Buffer, CommandLineState, Cursor, Mode};
 use crate::renderer::Error;
 
+// ╭──────────────────────────────────────╮
+// │ Renderer Types                       │
+// ╰──────────────────────────────────────╯
+
 type Result<'a, T> = std::result::Result<T, Error>;
 
-/// Handles the rendering of the buffer
+// ╭──────────────────────────────────────╮
+// │ Renderer Structs                     │
+// ╰──────────────────────────────────────╯
+
+// Handles the rendering of the buffer
 pub struct Renderer {
     terminal: Terminal<CrosstermBackend<Stdout>>,
 }
@@ -23,7 +31,7 @@ impl Renderer {
         Renderer { terminal }
     }
 
-    /// Renders the current buffer
+    // Renders the current buffer
     pub fn render(&mut self, buffer: &Buffer) -> Result<()> {
         let mut lines: Vec<Line> = Vec::new();
         let mut nums: Vec<Line> = Vec::new();
@@ -190,8 +198,8 @@ impl Renderer {
     }
 }
 
-/// Formats the line
-/// TODO: Reduce the amount of parameters, or take only the necessary parts of the parameters
+// Formats the line
+// TODO: Reduce the amount of parameters, or take only the necessary parts of the parameters
 fn format_line(
     line: &str,
     line_num: usize,
@@ -255,7 +263,7 @@ fn format_cmd_content(content: &Vec<String>, cursor: &Cursor) -> Vec<Line<'stati
     lines
 }
 
-/// Checks if the current character position is highlighted
+// Checks if the current character position is highlighted
 fn check_cursor_for_visual(
     line_num: usize,
     c_num: usize,

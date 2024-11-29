@@ -1,6 +1,5 @@
 use crate::buffer::{Buffer, Mode};
 
-/// Handles buffer manipulation.
 pub trait Navigation {
     fn move_cursor(&mut self, x: i32, y: i32);
     fn move_cursor_to_top(&mut self);

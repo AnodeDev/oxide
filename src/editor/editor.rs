@@ -8,9 +8,16 @@ use crate::keybinding::{Action, CommandParser, KeybindingManager, ModeParams};
 use crate::renderer::Renderer;
 use crate::OxideError;
 
+// ╭──────────────────────────────────────╮
+// │ Editor Types                         │
+// ╰──────────────────────────────────────╯
+
 type Result<T> = std::result::Result<T, crate::OxideError>;
 
-/// Holds all the editor states
+// ╭──────────────────────────────────────╮
+// │ Editor Struct                        │
+// ╰──────────────────────────────────────╯
+
 pub struct Editor {
     pub buffers: Vec<Buffer>,
     pub active_buffer: usize,
@@ -35,7 +42,7 @@ impl Editor {
         self.buffers.push(buffer);
     }
 
-    /// Borrows the current buffer
+    // Borrows the current buffer
     pub fn get_active_buffer(&mut self) -> &Buffer {
         if self.buffers[self.active_buffer].kind == BufferKind::BufferList {
             self.buffers[self.active_buffer].content = self
@@ -48,7 +55,7 @@ impl Editor {
         &self.buffers[self.active_buffer]
     }
 
-    /// Borrows the current buffer as mutable
+    // Borrows the current buffer as mutable
     pub fn get_active_buffer_mut(&mut self) -> &mut Buffer {
         if self.buffers[self.active_buffer].kind == BufferKind::BufferList {
             self.buffers[self.active_buffer].content = self
@@ -61,7 +68,7 @@ impl Editor {
         &mut self.buffers[self.active_buffer]
     }
 
-    /// Calls the rendering function to not borrow past the editor's lifetime
+    // Calls the rendering function to not borrow past the editor's lifetime
     pub fn render(&mut self) -> Result<()> {
         let buffer = &self.buffers[self.active_buffer];
 
@@ -85,7 +92,7 @@ impl Editor {
         self.get_active_buffer_mut().switch_buffer(cmd_content);
     }
 
-    /// Parses the keybinding and executes the corresponding action
+    // Parses the keybinding and executes the corresponding action
     pub fn parse_action(
         &mut self,
         action: Action,
