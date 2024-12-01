@@ -150,7 +150,7 @@ impl Manipulation for Buffer {
 
                         // Removes all selected lines between first and last.
                         for (num, _line) in selected_lines.iter().enumerate() {
-                            self.content.remove(top.y + num + 1);
+                            self.content.remove((top.y + num + 1).clamp(0, self.content.len() - 1));
                         }
 
                         // Makes sure bottom.y is set correctly.
