@@ -320,6 +320,23 @@ impl KeybindingManager {
             Action::SwitchMode(ModeParams::Normal { mode: Mode::Normal }),
         );
 
+        self.add_binding(
+            Mode::Visual,
+            None,
+            vec![
+                (KeyCode::Char('g'), KeyModifiers::NONE),
+                (KeyCode::Char('g'), KeyModifiers::NONE),
+            ],
+            Action::TopOfBuffer,
+        );
+
+        self.add_binding(
+            Mode::Visual,
+            None,
+            vec![(KeyCode::Char('G'), KeyModifiers::SHIFT)],
+            Action::EndOfBuffer,
+        );
+
         // COMMAND MODE
         self.add_binding(
             Mode::Command,
