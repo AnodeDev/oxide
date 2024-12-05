@@ -3,7 +3,7 @@ use ratatui::Terminal;
 
 use std::io::Stdout;
 
-use crate::buffer::{Buffer, BufferKind, Manipulation, Mode, Navigation};
+use crate::buffer::{Buffer, BufferKind, Manipulation, Navigation};
 use crate::keybinding::{Action, CommandParser, KeybindingManager, ModeParams};
 use crate::renderer::Renderer;
 use crate::OxideError;
@@ -72,24 +72,9 @@ impl Editor {
     pub fn render(&mut self) -> Result<()> {
         let buffer = &self.buffers[self.active_buffer];
 
-        match self.renderer.render(buffer) {
-            Ok(_) => {}
-            Err(e) => {
-                eprintln!("ERROR: {}", e);
-            }
-        };
+        self.renderer.render_buffer(buffer)?;
 
         Ok(())
-    }
-
-    fn switch_buffer(&mut self) {
-        let cmd_content = self
-            .buffers
-            .iter()
-            .map(|buffer| buffer.title.clone())
-            .collect();
-
-        self.get_active_buffer_mut().switch_buffer(cmd_content);
     }
 
     // Parses the keybinding and executes the corresponding action
@@ -123,41 +108,18 @@ impl Editor {
                 tokio_runtime.block_on(self.get_active_buffer_mut().write_buffer())?;
             }
             Action::ExecuteCommand => {
-                let input: String = self.get_active_buffer_mut().get_command();
-                let state = self.get_active_buffer().command_line.state;
-                let commands = CommandParser::parse(input, state);
+                let input: &str = self.get_active_buffer_mut().get_command();
+                let commands = CommandParser::parse(input);
 
                 for command in commands {
                     self.parse_action(command, keybinding_manager, tokio_runtime)?;
                 }
 
                 self.get_active_buffer_mut()
-                    .switch_mode(ModeParams::Normal { mode: Mode::Normal });
+                    .switch_mode(ModeParams::Normal);
             }
             Action::OpenFile(path) => {
                 tokio_runtime.block_on(self.get_active_buffer_mut().load_file(path))?;
-            }
-            Action::FindFile => {
-                tokio_runtime.block_on(self.get_active_buffer_mut().find_file())?;
-            }
-            Action::InitSwitchBuffer => {
-                self.switch_buffer();
-            }
-            Action::SwitchBuffer(buffer) => {
-                if let Some(index) = self.buffers.iter().position(|b| b.title == buffer) {
-                    self.get_active_buffer_mut()
-                        .switch_mode(ModeParams::Normal { mode: Mode::Normal });
-
-                    self.active_buffer = index;
-                } else {
-                    self.switch_buffer();
-                }
-            }
-            Action::AppendSelected => self.get_active_buffer_mut().append_selected()?,
-            Action::Select => {
-                if let Some(action) = self.get_active_buffer_mut().select_entry()? {
-                    self.parse_action(action, keybinding_manager, tokio_runtime)?;
-                }
             }
             _ => {}
         };

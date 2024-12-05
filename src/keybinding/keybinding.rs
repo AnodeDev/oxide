@@ -1,10 +1,8 @@
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use std::fmt;
-use std::write;
 
 use std::collections::HashMap;
 
-use crate::buffer::{BufferKind, CommandLineState, Mode};
+use crate::buffer::{BufferKind, Mode};
 
 // ╭──────────────────────────────────────╮
 // │ Keybinding Enums                     │
@@ -27,30 +25,18 @@ pub enum Action {
     WriteBuffer,
     ExecuteCommand,
     OpenFile(String),
-    FindFile,
-    InitSwitchBuffer,
-    SwitchBuffer(String),
-    AppendSelected,
-    Select,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum ModeParams {
-    Normal {
-        mode: Mode,
-    },
+    Normal,
     Insert {
-        mode: Mode,
         insert_direction: InsertDirection,
     },
-    Visual {
-        mode: Mode,
-    },
+    Visual,
     Command {
-        mode: Mode,
         prefix: String,
         input: String,
-        state: CommandLineState,
     },
 }
 
@@ -144,7 +130,6 @@ impl KeybindingManager {
             Some(BufferKind::Normal),
             vec![(KeyCode::Char('s'), KeyModifiers::NONE)],
             Action::SwitchMode(ModeParams::Insert {
-                mode: Mode::Insert,
                 insert_direction: InsertDirection::Before,
             }),
         );
@@ -154,7 +139,6 @@ impl KeybindingManager {
             Some(BufferKind::Normal),
             vec![(KeyCode::Char('a'), KeyModifiers::NONE)],
             Action::SwitchMode(ModeParams::Insert {
-                mode: Mode::Insert,
                 insert_direction: InsertDirection::After,
             }),
         );
@@ -195,28 +179,6 @@ impl KeybindingManager {
 
         self.add_binding(
             Mode::Normal,
-            None,
-            vec![
-                (KeyCode::Char(' '), KeyModifiers::NONE),
-                (KeyCode::Char('f'), KeyModifiers::NONE),
-                (KeyCode::Char('f'), KeyModifiers::NONE),
-            ],
-            Action::FindFile,
-        );
-
-        self.add_binding(
-            Mode::Normal,
-            None,
-            vec![
-                (KeyCode::Char(' '), KeyModifiers::NONE),
-                (KeyCode::Char('b'), KeyModifiers::NONE),
-                (KeyCode::Char('s'), KeyModifiers::NONE),
-            ],
-            Action::InitSwitchBuffer,
-        );
-
-        self.add_binding(
-            Mode::Normal,
             Some(BufferKind::Normal),
             vec![(KeyCode::Char('f'), KeyModifiers::NONE)],
             Action::NewLine(NewLineDirection::Under),
@@ -234,10 +196,8 @@ impl KeybindingManager {
             None,
             vec![(KeyCode::Char(':'), KeyModifiers::NONE)],
             Action::SwitchMode(ModeParams::Command {
-                mode: Mode::Command,
                 prefix: ":".to_string(),
                 input: String::new(),
-                state: CommandLineState::Default,
             }),
         );
 
@@ -245,14 +205,7 @@ impl KeybindingManager {
             Mode::Normal,
             None,
             vec![(KeyCode::Char('v'), KeyModifiers::NONE)],
-            Action::SwitchMode(ModeParams::Visual { mode: Mode::Visual }),
-        );
-
-        self.add_binding(
-            Mode::Normal,
-            Some(BufferKind::BufferList),
-            vec![(KeyCode::Enter, KeyModifiers::NONE)],
-            Action::Select,
+            Action::SwitchMode(ModeParams::Visual),
         );
 
         // INSERT MODE
@@ -260,7 +213,7 @@ impl KeybindingManager {
             Mode::Insert,
             None,
             vec![(KeyCode::Esc, KeyModifiers::NONE)],
-            Action::SwitchMode(ModeParams::Normal { mode: Mode::Normal }),
+            Action::SwitchMode(ModeParams::Normal),
         );
 
         self.add_binding(
@@ -317,7 +270,7 @@ impl KeybindingManager {
             Mode::Visual,
             None,
             vec![(KeyCode::Esc, KeyModifiers::NONE)],
-            Action::SwitchMode(ModeParams::Normal { mode: Mode::Normal }),
+            Action::SwitchMode(ModeParams::Normal),
         );
 
         self.add_binding(
@@ -342,7 +295,7 @@ impl KeybindingManager {
             Mode::Command,
             None,
             vec![(KeyCode::Esc, KeyModifiers::NONE)],
-            Action::SwitchMode(ModeParams::Normal { mode: Mode::Normal }),
+            Action::SwitchMode(ModeParams::Normal),
         );
 
         self.add_binding(
@@ -378,13 +331,6 @@ impl KeybindingManager {
             None,
             vec![(KeyCode::Down, KeyModifiers::NONE)],
             Action::MoveCursor(0, 1),
-        );
-
-        self.add_binding(
-            Mode::Command,
-            None,
-            vec![(KeyCode::Tab, KeyModifiers::NONE)],
-            Action::AppendSelected,
         );
     }
 
@@ -426,7 +372,7 @@ impl KeybindingManager {
         let action = match self.current_mode {
             Mode::Normal => self.handle_normal_mode(),
             Mode::Insert => self.handle_insert_mode(key_binding),
-            Mode::Visual => self.handle_visual_mode(),
+            Mode::Visual { .. } => self.handle_visual_mode(),
             Mode::Command => self.handle_command_mode(key_binding),
         };
 
@@ -562,19 +508,12 @@ impl KeybindingManager {
 }
 
 impl CommandParser {
-    pub fn parse(input: String, state: CommandLineState) -> Vec<Action> {
-        match state {
-            CommandLineState::Default => input
-                .chars()
-                .map(|c| match c {
-                    'w' => Action::WriteBuffer,
-                    'q' => Action::Quit,
-                    _ => Action::Nop,
-                })
-                .collect(),
-            CommandLineState::FindFile => vec![Action::OpenFile(input)],
-            CommandLineState::SwitchBuffer => vec![Action::SwitchBuffer(input)],
-            _ => vec![],
+    pub fn parse(input: &str) -> Vec<Action> {
+        match input {
+            "wq" => vec![ Action::WriteBuffer, Action::Quit ],
+            "w" => vec![ Action::WriteBuffer ],
+            "q" => vec![ Action::Quit ],
+            _ => vec![ ],
         }
     }
 }

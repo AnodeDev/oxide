@@ -1,6 +1,6 @@
 use ratatui::crossterm::event::{self, Event};
 
-use oxide::buffer::{Buffer, Mode};
+use oxide::buffer::Buffer;
 use oxide::editor::Editor;
 use oxide::keybinding::{KeybindingManager, ModeParams};
 use oxide::utils::logging::setup_logger;
@@ -54,11 +54,11 @@ fn main() -> Result<()> {
                             Err(e) => {
                                 editor
                                     .get_active_buffer_mut()
-                                    .switch_mode(ModeParams::Normal { mode: Mode::Normal });
-                                editor
-                                    .get_active_buffer_mut()
-                                    .command_line
-                                    .display_error(e.to_string());
+                                    .switch_mode(ModeParams::Normal);
+                                // editor
+                                //     .get_active_buffer_mut()
+                                //     .command_line
+                                //     .display_error(e.to_string());
                             }
                         }
                     }

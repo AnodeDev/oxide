@@ -1,11 +1,11 @@
 use std::fmt;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
-use crate::buffer::{CommandLineManager, CommandLineState, Error, Viewport};
-use crate::keybinding::{Action, InsertDirection, ModeParams};
+use crate::buffer::{Error, Viewport};
+use crate::keybinding::{InsertDirection, ModeParams};
 
 // ╭──────────────────────────────────────╮
 // │ Buffer Types                         │
@@ -47,11 +47,18 @@ impl fmt::Display for Mode {
 // │ Buffer Structs                       │
 // ╰──────────────────────────────────────╯
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct Cursor {
     pub x: usize,
     pub y: usize,
     pub desired_x: usize, // If line is shorter than x, the original x is stored here.
+}
+
+#[derive(Debug, Default)]
+pub struct CommandLine {
+    pub cursor: Cursor,
+    pub prefix: String,
+    pub input: String,
 }
 
 // Holds the states of the buffer. These states tell the editor if the buffer can be edited and/or
@@ -101,9 +108,8 @@ pub struct Buffer {
     pub viewport: Viewport,
     pub mode: Mode,
     pub state: BufferState,
-    pub command_line: CommandLineManager,
+    pub command_line: CommandLine,
     pub visual_start: Option<Cursor>,
-    pub visual_end: Option<Cursor>,
 }
 
 impl Buffer {
@@ -130,9 +136,8 @@ impl Buffer {
             viewport: Viewport::new(height - 2),
             mode: Mode::Normal,
             state,
-            command_line: CommandLineManager::default(),
+            command_line: CommandLine::default(),
             visual_start: None,
-            visual_end: None,
         }
     }
 
@@ -153,9 +158,8 @@ impl Buffer {
             viewport: Viewport::new(height - 2),
             mode: Mode::Normal,
             state: BufferState::scratch(),
-            command_line: CommandLineManager::default(),
+            command_line: CommandLine::default(),
             visual_start: None,
-            visual_end: None,
         }
     }
 
@@ -171,9 +175,8 @@ impl Buffer {
             viewport: Viewport::new(height - 2),
             mode: Mode::Normal,
             state: BufferState::locked(),
-            command_line: CommandLineManager::default(),
+            command_line: CommandLine::default(),
             visual_start: None,
-            visual_end: None,
         }
     }
 
@@ -203,9 +206,8 @@ impl Buffer {
             viewport: Viewport::new(height - 2),
             mode: Mode::Normal,
             state: BufferState::default(),
-            command_line: CommandLineManager::default(),
+            command_line: CommandLine::default(),
             visual_start: None,
-            visual_end: None,
         })
     }
 
@@ -230,42 +232,31 @@ impl Buffer {
     pub fn switch_mode(&mut self, mode: ModeParams) {
         // Makes sure to reset the visual cursors and command line values
         match self.mode {
-            Mode::Visual => {
-                self.visual_start = None;
-                self.visual_end = None;
-            }
+            Mode::Visual => self.visual_start = None,
             Mode::Command => {
-                self.command_line.clear();
-            }
+                self.command_line.prefix.clear();
+                self.command_line.input.clear();
+            },
             _ => {}
         }
 
         match mode {
-            ModeParams::Visual { mode } => {
+            ModeParams::Visual => {
                 self.visual_start = Some(self.cursor);
-                self.visual_end = Some(self.cursor);
-
-                self.mode = mode;
+                self.mode = Mode::Visual;
             }
             ModeParams::Command {
-                mode,
                 prefix,
                 input,
-                state,
             } => {
                 self.command_line.prefix = prefix;
                 self.command_line.input = format!("{}", input);
-                self.command_line.state = state;
                 self.command_line.cursor.x =
                     self.command_line.prefix.len() + self.command_line.input.len();
-                self.command_line.cursor.y = 0;
 
-                self.mode = mode;
+                self.mode = Mode::Command;
             }
-            ModeParams::Insert {
-                mode,
-                insert_direction,
-            } => {
+            ModeParams::Insert { insert_direction } => {
                 if self.state.mutable {
                     match insert_direction {
                         InsertDirection::Before => {}
@@ -276,19 +267,16 @@ impl Buffer {
                         }
                     }
 
-                    self.mode = mode;
+                    self.mode = Mode::Insert;
                 }
             }
-            ModeParams::Normal { mode } => self.mode = mode,
+            ModeParams::Normal => self.mode = Mode::Normal,
         }
     }
 
     // Returns the current command from the command line.
-    pub fn get_command(&mut self) -> String {
-        let mut command = self.command_line.input.clone();
-        command.push_str(&self.command_line.suffix);
-
-        command
+    pub fn get_command(&mut self) -> &str {
+        &self.command_line.input
     }
 
     pub async fn load_file(&mut self, path: String) -> Result<()> {
@@ -316,163 +304,5 @@ impl Buffer {
         } else {
             Err(Error::FileNotFoundError)
         }
-    }
-
-    pub async fn find_file(&mut self) -> Result<()> {
-        let stored_path = &mut self.path.clone();
-
-        // Checks if current buffer contains a path, otherwise it sets it to the home directory.
-        let path: &mut PathBuf = if let Some(file_path) = stored_path {
-            file_path.pop();
-
-            file_path
-        } else {
-            let mut path = PathBuf::new();
-
-            path.push("~/");
-
-            &mut path.clone()
-        };
-
-        // Checks if the path is a directory.
-        if path.is_dir() {
-            // Reads the directory.
-            let entries = fs::read_dir(path.clone())?;
-
-            // Creates a PathBuf from entries.
-            let content = entries
-                .map(|res| res.map(|e| e.path()))
-                .collect::<std::result::Result<Vec<_>, std::io::Error>>()?;
-
-            // Filters the content to only display what matches the current input
-            let mut content_filtered: Vec<&PathBuf> = content
-                .iter()
-                .filter(|path| {
-                    path.to_string_lossy()
-                        .into_owned()
-                        .contains(&self.command_line.input)
-                })
-                .collect();
-
-            // Sorts the content in alphabetical order.
-            content_filtered.sort();
-
-            // Separates the content into directories and files.
-            let directories: Vec<&PathBuf> = content_filtered
-                .iter()
-                .filter(|entry| entry.is_dir())
-                .map(|path| *path)
-                .collect();
-            let files: Vec<&PathBuf> = content_filtered
-                .iter()
-                .filter(|entry| entry.is_file())
-                .map(|path| *path)
-                .collect();
-
-            // Keeps track of dotfiles, they go at the top of their respective category.
-            let mut dot_count = 0;
-
-            // Directories are displayed first
-            for dir in &directories {
-                if let Some(name) = dir.file_name() {
-                    // Pushes the name of the directory to the PathBuf.
-                    let name = name.to_string_lossy().into_owned();
-                    path.push(&name);
-
-                    let path_str = path.to_string_lossy().into_owned();
-
-                    // Checks if directory is a dotfile.
-                    if name.chars().nth(0) == Some('.') {
-                        self.command_line.content.insert(dot_count, path_str);
-
-                        dot_count += 1;
-                    } else {
-                        self.command_line.content.push(path_str);
-                    }
-
-                    // Removes the directory name in preparation for the next entry.
-                    path.pop();
-                }
-            }
-
-            // Sets the count to the length of the directories as to not mix files and directories.
-            dot_count = directories.len();
-
-            // Displays the files under the directories.
-            for file in files {
-                if let Some(name) = file.file_name() {
-                    let name = name.to_string_lossy().into_owned();
-                    path.push(&name);
-
-                    let path_str = path.to_string_lossy().into_owned();
-
-                    // Checks if file is a dotfile.
-                    if name.chars().nth(0) == Some('.') {
-                        self.command_line.content.insert(dot_count, path_str);
-
-                        dot_count += 1;
-                    } else {
-                        self.command_line.content.push(path_str);
-                    }
-
-                    path.pop();
-                }
-            }
-
-            // Switches the mode to command mode.
-            self.switch_mode(ModeParams::Command {
-                mode: Mode::Command,
-                prefix: "Find File ".to_string(),
-                input: format!("{}/", path.to_string_lossy().into_owned()),
-                state: CommandLineState::FindFile,
-            });
-        }
-
-        Ok(())
-    }
-
-    // Appends the currently selected entry to the command line.
-    pub fn append_selected(&mut self) -> Result<()> {
-        if self.mode != Mode::Command {
-            return Err(Error::WrongModeError);
-        } else {
-            let content = &self.command_line.content[self.command_line.cursor.y];
-
-            if Path::new(content).exists() {
-                if let Some(file_name) = Path::new(content).file_name() {
-                    self.command_line.suffix = file_name.to_string_lossy().into_owned();
-                }
-            } else {
-                self.command_line.input = content.to_string();
-            }
-
-            self.command_line.cursor.x = self.command_line.prefix.len()
-                + self.command_line.input.len()
-                + self.command_line.suffix.len();
-
-            Ok(())
-        }
-    }
-
-    pub fn switch_buffer(&mut self, content: Vec<String>) {
-        self.switch_mode(ModeParams::Command {
-            mode: Mode::Command,
-            prefix: "Switch Buffer ".to_string(),
-            input: String::new(),
-            state: CommandLineState::SwitchBuffer,
-        });
-
-        self.command_line.content = content;
-    }
-
-    pub fn select_entry(&mut self) -> Result<Option<Action>> {
-        let return_type = match self.kind {
-            BufferKind::BufferList => {
-                Some(Action::SwitchBuffer(self.content[self.cursor.y].clone()))
-            }
-            BufferKind::Normal => None,
-        };
-
-        Ok(return_type)
     }
 }

@@ -23,10 +23,12 @@ impl Manipulation for Buffer {
                 self.cursor.x += 1;
             }
             Mode::Command => {
-                self.command_line.add_char(character)?;
+                let prefix_len = self.command_line.prefix.len();
+                self.command_line.input.insert(self.command_line.cursor.x - prefix_len, character);
+                self.command_line.cursor.x += 1;
             }
             // If user is in normal- or visual mode, something is wrong.
-            Mode::Normal | Mode::Visual => return Err(Error::WrongModeError),
+            Mode::Normal | Mode::Visual { .. } => return Err(Error::WrongModeError),
         };
 
         Ok(())
@@ -97,26 +99,35 @@ impl Manipulation for Buffer {
                 if self.state.mutable {
                     if self.cursor.x < self.content[self.cursor.y].len() {
                         self.content[self.cursor.y].remove(self.cursor.x);
+
+                        if !self.content[self.cursor.y].is_empty() && self.cursor.x >= self.content[self.cursor.y].len() - 1 {
+                            self.cursor.x -= 1;
+                        }
+                    } else if self.cursor.x == self.content[self.cursor.y].len() && !self.content[self.cursor.y].is_empty() {
+                        self.cursor .x -= 1;
                     }
                 }
             }
             Mode::Command => {
-                self.command_line.remove_char()?;
+                if self.command_line.cursor.x > 1 {
+                    let prefix_len = self.command_line.prefix.len();
+                    self.command_line.input.remove(self.command_line.cursor.x - prefix_len - 1);
+                    self.command_line.cursor.x -= 1;
+                }
             }
             // Removes the selected characters.
             Mode::Visual => {
-                if self.state.mutable {
-                    if let (Some(start), Some(end)) = (&mut self.visual_start, &mut self.visual_end)
-                    {
+                if let Some(start) = self.visual_start {
+                    if self.state.mutable {
                         // Sets the top and bottom cursor positions.
-                        let (top, bottom) = if start.y < end.y {
-                            (start, end)
-                        } else if start.y == end.y && start.x < end.x {
-                            (start, end)
-                        } else if start.y == end.y && start.x > end.x {
-                            (end, start)
+                        let (top, mut bottom) = if start.y < self.cursor.y {
+                            (start, self.cursor)
+                        } else if start.y == self.cursor.y && start.x < self.cursor.x {
+                            (start, self.cursor)
+                        } else if start.y == self.cursor.y && start.x > self.cursor.x {
+                            (self.cursor, start)
                         } else {
-                            (end, start)
+                            (self.cursor, start)
                         };
 
                         let mut selected_lines: Vec<String> = self.content[top.y..bottom.y + 1]
@@ -150,7 +161,8 @@ impl Manipulation for Buffer {
 
                         // Removes all selected lines between first and last.
                         for (num, _line) in selected_lines.iter().enumerate() {
-                            self.content.remove((top.y + num + 1).clamp(0, self.content.len() - 1));
+                            self.content
+                                .remove((top.y + num + 1).clamp(0, self.content.len() - 1));
                         }
 
                         // Makes sure bottom.y is set correctly.
@@ -180,9 +192,7 @@ impl Manipulation for Buffer {
                         // Updates the cursor position and switches back to normal mode.
                         self.cursor.x = top.x;
                         self.cursor.y = top.y;
-                        self.switch_mode(ModeParams::Normal { mode: Mode::Normal });
-                    } else {
-                        return Err(Error::VisualModeInitError);
+                        self.switch_mode(ModeParams::Normal);
                     }
                 }
             }

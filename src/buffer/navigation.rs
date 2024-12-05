@@ -9,7 +9,7 @@ pub trait Navigation {
 impl Navigation for Buffer {
     fn move_cursor(&mut self, x: i32, y: i32) {
         match self.mode {
-            Mode::Normal | Mode::Visual => {
+            Mode::Normal | Mode::Visual { .. } => {
                 // Sets the new y value.
                 // Clamp is used to make sure it doesn't exceed the length of the line or 0.
                 let new_y =
@@ -32,17 +32,17 @@ impl Navigation for Buffer {
                     let current_line_len = self.content[self.cursor.y].len();
                     self.cursor.x = self.cursor.desired_x.min(current_line_len);
                 }
-
-                // Checks if visual mode is on and makes sure to adjust the visual cursor accordingly.
-                if let Some(visual_end) = &mut self.visual_end {
-                    visual_end.x = self.cursor.x;
-                    visual_end.y = self.cursor.y;
-                    visual_end.desired_x = self.cursor.desired_x;
-                }
-            }
+            },
             Mode::Command => {
-                self.command_line.move_cursor(x, y);
-            }
+                let prefix_len: i32 = self.command_line.prefix.len() as i32;
+                let input_len: i32 = self.command_line.input.len() as i32;
+                let new_x =
+                    (self.cursor.x as i32 + x)
+                    .clamp(prefix_len, prefix_len + input_len) as usize;
+
+                self.command_line.cursor.x = new_x;
+                self.command_line.cursor.desired_x = new_x;
+            },
             _ => {}
         }
     }
