@@ -160,9 +160,9 @@ impl Manipulation for Buffer {
                         let last_line = selected_lines.pop();
 
                         // Removes all selected lines between first and last.
-                        for (num, _line) in selected_lines.iter().enumerate() {
+                        for _ in selected_lines {
                             self.content
-                                .remove((top.y + num + 1).clamp(0, self.content.len() - 1));
+                                .remove((top.y + 1).clamp(0, self.content.len() - 1));
                         }
 
                         // Makes sure bottom.y is set correctly.
