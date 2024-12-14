@@ -18,11 +18,11 @@ This made it really annoying to work in Neovim and Emacs, since I had to switch 
 
 I'll just make my own editor... It's that easy!
 
-I've started working on a keybinding design that hopefully makes this a lot less of a hassle, meaning you can easily configure the keybindings to fit any layout.
+The keybinding system I have developed is much less of a hassle to configure, at least once the editor can be configured properly. I also want to make some sort of a visualizer for which keys are bound where in the future.
 
-Since I already knew I wanted to build this, I decided to add some extra functions as well. I really wanted to make the editor as fast as possible, and since I'm building it in Rust I want to try to implement `async` as I don't want to have any actions that might freeze the editor. 
+The editor will be written in Rust (not because I'm a Rust-bro but because I like writing in it), so I want to it to it's fullest capacity and implement some QoL features to make the editor feel as smooth as possible. I plan on achieving this through the use of `async` for actions that might take a while, like loading and writing to files.
 
-I really like the package system in Emacs, so I want to try to make my own version that can install and load packages asynchronously, hopefully meaning startup time for the editor is a lot shorter. With this I really wanted a cool way to see the packages and their dependencies, so I thought I'd try to make a tree structure for the packages where the user can see all packages, dependencies, conflicts and interdependencies to help manage the packages effectively.
+I really like the package system in Emacs, so I want to try to make my own version that can install and load packages asynchronously, hopefully meaning startup time for the editor is a lot shorter. With this I really wanted a cool way to see the packages and their dependencies, so I'm planning on making a tree structure for the packages where the user can see all packages, dependencies, conflicts and interdependencies to help manage the packages effectively.
 
 I want to implement a really memory-efficient buffer system, and I settled on the idea of storing the buffers as deltas instead of the whole file. This means the only data that is stored is the changes, making the size of the buffer really small. I also wanted to try to implement a compression system, compressing large files or buffers that have been inactive for a long time to free up memory.
 
