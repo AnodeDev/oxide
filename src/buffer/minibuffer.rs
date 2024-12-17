@@ -1,6 +1,4 @@
-use crate::buffer::{Cursor, Error};
-
-type Result<T> = std::result::Result<T, Error>;
+use crate::buffer::Cursor;
 
 #[derive(Default)]
 pub enum MinibufferKind {

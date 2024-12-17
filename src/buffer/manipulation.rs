@@ -219,7 +219,6 @@ impl Manipulation for Buffer {
 impl Manipulation for CommandLine {
     fn add_char(&mut self, character: char) -> Result<()> {
         let prefix_len = self.prefix.len();
-        let input_len = self.input.len();
 
         self.input
             .insert(self.cursor.x - prefix_len, character);
@@ -230,7 +229,6 @@ impl Manipulation for CommandLine {
 
     fn remove_char(&mut self) -> Result<()> {
         let prefix_len = self.prefix.len();
-        let input_len = self.input.len();
 
         if !self.input.is_empty() {
             self.input

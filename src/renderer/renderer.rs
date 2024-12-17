@@ -17,6 +17,7 @@ use crate::renderer::Error;
 const CURSOR_STYLE: Style = Style::new().fg(Color::Black).bg(Color::Rgb(0xf2, 0xd5, 0xcf));
 const HIGHLIGHT_STYLE: Style = Style::new().bg(Color::Rgb(0x51, 0x57, 0x6d));
 const STATUSLINE_STYLE: Style = Style::new().bg(Color::Rgb(0x23, 0x26, 0x34));
+const ERROR_STYLE: Style = Style::new().fg(Color::Red);
 
 // ╭──────────────────────────────────────╮
 // │ Renderer Macros                      │
@@ -250,10 +251,4 @@ impl Renderer {
             Err(_) => todo!(),
         }
     }
-}
-
-fn format_error(line: String) -> Line<'static> {
-    let style = Style::new().fg(Color::Red);
-
-    Line::styled(line, style)
 }

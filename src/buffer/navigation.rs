@@ -56,7 +56,7 @@ impl Navigation for Buffer {
 }
 
 impl Navigation for CommandLine {
-    fn move_cursor(&mut self, x: i32, y: i32) {
+    fn move_cursor(&mut self, x: i32, _y: i32) {
         let prefix_len: i32 = self.prefix.len() as i32;
         let input_len: i32 = self.input.len() as i32;
         let new_x = (self.cursor.x as i32 + x).clamp(prefix_len, prefix_len + input_len) as usize;
