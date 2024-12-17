@@ -50,8 +50,10 @@ pub enum NewLineDirection {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum InsertDirection {
+    Beginning,
     Before,
     After,
+    End,
 }
 
 // ╭──────────────────────────────────────╮
@@ -136,9 +138,27 @@ impl KeybindingManager {
         self.add_binding(
             Mode::Normal,
             Some(BufferKind::Normal),
+            vec![(KeyCode::Char('S'), KeyModifiers::SHIFT)],
+            Action::SwitchMode(ModeParams::Insert {
+                insert_direction: InsertDirection::Beginning,
+            }),
+        );
+
+        self.add_binding(
+            Mode::Normal,
+            Some(BufferKind::Normal),
             vec![(KeyCode::Char('a'), KeyModifiers::NONE)],
             Action::SwitchMode(ModeParams::Insert {
                 insert_direction: InsertDirection::After,
+            }),
+        );
+
+        self.add_binding(
+            Mode::Normal,
+            Some(BufferKind::Normal),
+            vec![(KeyCode::Char('A'), KeyModifiers::SHIFT)],
+            Action::SwitchMode(ModeParams::Insert {
+                insert_direction: InsertDirection::End,
             }),
         );
 

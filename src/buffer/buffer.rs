@@ -257,12 +257,14 @@ impl Buffer {
             ModeParams::Insert { insert_direction } => {
                 if self.state.mutable {
                     match insert_direction {
+                        InsertDirection::Beginning => self.cursor.x = 0,
                         InsertDirection::Before => {}
                         InsertDirection::After => {
                             if self.content[self.cursor.y].len() > self.cursor.x {
                                 self.cursor.x += 1;
                             }
                         }
+                        InsertDirection::End => self.cursor.x = self.content[self.cursor.y].len(),
                     }
 
                     self.mode = Mode::Insert;
