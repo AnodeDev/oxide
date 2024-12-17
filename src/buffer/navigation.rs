@@ -1,4 +1,4 @@
-use crate::buffer::{Buffer, Mode};
+use crate::buffer::{Buffer, CommandLine, Minibuffer, Mode};
 
 pub trait Navigation {
     fn move_cursor(&mut self, x: i32, y: i32);
@@ -32,17 +32,10 @@ impl Navigation for Buffer {
                     let current_line_len = self.content[self.cursor.y].len();
                     self.cursor.x = self.cursor.desired_x.min(current_line_len);
                 }
-            },
+            }
             Mode::Command => {
-                let prefix_len: i32 = self.command_line.prefix.len() as i32;
-                let input_len: i32 = self.command_line.input.len() as i32;
-                let new_x =
-                    (self.cursor.x as i32 + x)
-                    .clamp(prefix_len, prefix_len + input_len) as usize;
-
-                self.command_line.cursor.x = new_x;
-                self.command_line.cursor.desired_x = new_x;
-            },
+                self.command_line.move_cursor(x, y);
+            }
             _ => {}
         }
     }
@@ -59,5 +52,46 @@ impl Navigation for Buffer {
         self.cursor.y = self.content.len() - 1;
 
         self.viewport.adjust(self.cursor.y, self.content.len());
+    }
+}
+
+impl Navigation for CommandLine {
+    fn move_cursor(&mut self, x: i32, y: i32) {
+        let prefix_len: i32 = self.prefix.len() as i32;
+        let input_len: i32 = self.input.len() as i32;
+        let new_x = (self.cursor.x as i32 + x).clamp(prefix_len, prefix_len + input_len) as usize;
+
+        self.cursor.x = new_x;
+        self.cursor.desired_x = new_x;
+    }
+
+    fn move_cursor_to_top(&mut self) {
+        unreachable!()
+    }
+
+    fn move_cursor_to_bot(&mut self) {
+        unreachable!()
+    }
+}
+
+impl Navigation for Minibuffer {
+    fn move_cursor(&mut self, x: i32, y: i32) {
+        let new_y = (self.cursor.y as i32 + y).clamp(0, self.content.len() as i32 - 1) as usize;
+        self.cursor.y = new_y;
+
+        let prefix_len: i32 = self.prefix.len() as i32;
+        let input_len: i32 = self.input.len() as i32;
+        let new_x = (self.cursor.x as i32 + x).clamp(prefix_len, prefix_len + input_len) as usize;
+
+        self.cursor.x = new_x;
+        self.cursor.desired_x = new_x;
+    }
+
+    fn move_cursor_to_top(&mut self) {
+        unreachable!()
+    }
+
+    fn move_cursor_to_bot(&mut self) {
+        unreachable!()
     }
 }

@@ -5,6 +5,12 @@ use std::collections::HashMap;
 use crate::buffer::{BufferKind, Mode};
 
 // ╭──────────────────────────────────────╮
+// │ Keybinding Consts                    │
+// ╰──────────────────────────────────────╯
+
+pub const COMMANDS: [&str; 3] = ["wq", "w", "q"];
+
+// ╭──────────────────────────────────────╮
 // │ Keybinding Enums                     │
 // ╰──────────────────────────────────────╯
 
@@ -30,14 +36,9 @@ pub enum Action {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum ModeParams {
     Normal,
-    Insert {
-        insert_direction: InsertDirection,
-    },
+    Insert { insert_direction: InsertDirection },
     Visual,
-    Command {
-        prefix: String,
-        input: String,
-    },
+    Command { prefix: String, input: String },
 }
 
 // Defines where a new line can go
@@ -308,28 +309,28 @@ impl KeybindingManager {
         self.add_binding(
             Mode::Command,
             None,
-            vec![(KeyCode::Left, KeyModifiers::NONE)],
+            vec![(KeyCode::Char('n'), KeyModifiers::CONTROL)],
             Action::MoveCursor(-1, 0),
         );
 
         self.add_binding(
             Mode::Command,
             None,
-            vec![(KeyCode::Right, KeyModifiers::NONE)],
+            vec![(KeyCode::Char('e'), KeyModifiers::CONTROL)],
             Action::MoveCursor(1, 0),
         );
 
         self.add_binding(
             Mode::Command,
             None,
-            vec![(KeyCode::Up, KeyModifiers::NONE)],
+            vec![(KeyCode::Char('i'), KeyModifiers::CONTROL)],
             Action::MoveCursor(0, -1),
         );
 
         self.add_binding(
             Mode::Command,
             None,
-            vec![(KeyCode::Down, KeyModifiers::NONE)],
+            vec![(KeyCode::Char('o'), KeyModifiers::CONTROL)],
             Action::MoveCursor(0, 1),
         );
     }
@@ -509,11 +510,15 @@ impl KeybindingManager {
 
 impl CommandParser {
     pub fn parse(input: &str) -> Vec<Action> {
-        match input {
-            "wq" => vec![ Action::WriteBuffer, Action::Quit ],
-            "w" => vec![ Action::WriteBuffer ],
-            "q" => vec![ Action::Quit ],
-            _ => vec![ ],
+        if COMMANDS.contains(&input) {
+            match input {
+                "wq" => vec![Action::WriteBuffer, Action::Quit],
+                "w" => vec![Action::WriteBuffer],
+                "q" => vec![Action::Quit],
+                _ => Vec::new(),
+            }
+        } else {
+            Vec::new()
         }
     }
 }

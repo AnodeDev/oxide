@@ -2,7 +2,7 @@ use ratatui::layout::{Constraint, Layout};
 use ratatui::prelude::*;
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Block, Paragraph};
 use ratatui::Terminal;
 
 use std::io::Stdout;
@@ -10,8 +10,14 @@ use std::io::Stdout;
 use crate::buffer::{Buffer, Mode};
 use crate::renderer::Error;
 
-const CURSOR_STYLE: Style = Style::new().fg(Color::Black).bg(Color::Yellow);
-const HIGHLIGHT_STYLE: Style = Style::new().bg(Color::LightRed);
+// ╭──────────────────────────────────────╮
+// │ Renderer Consts                      │
+// ╰──────────────────────────────────────╯
+
+const CURSOR_STYLE: Style = Style::new().fg(Color::Black).bg(Color::Rgb(0xf2, 0xd5, 0xcf));
+const HIGHLIGHT_STYLE: Style = Style::new().bg(Color::Rgb(0x51, 0x57, 0x6d));
+const STATUSLINE_STYLE: Style = Style::new().bg(Color::Rgb(0x23, 0x26, 0x34));
+
 // ╭──────────────────────────────────────╮
 // │ Renderer Macros                      │
 // ╰──────────────────────────────────────╯
@@ -43,6 +49,16 @@ macro_rules! format_line {
         Line::from(spans)
     }};
 
+    ($line:expr, $line_num:expr, $y_pos:expr) => {{
+        let formatted_line = Line::from(String::from($line));
+
+        if $y_pos == $line_num {
+            formatted_line.style(CURSOR_STYLE)
+        } else {
+            formatted_line
+        }
+    }};
+
     ($line:expr, $line_num:expr, $visual_start:expr, $cursor:expr) => {{
         let mut spans: Vec<Span> = Vec::new();
         let line_str = format!("{} ", $line);
@@ -61,9 +77,7 @@ macro_rules! format_line {
         for (num, c) in line_str.chars().enumerate() {
             let span = Span::from(c.to_string());
 
-
-            let is_selected: bool = 
-            if $line_num >= top.y && $line_num <= bottom.y {
+            let is_selected: bool = if $line_num >= top.y && $line_num <= bottom.y {
                 if $line_num == top.y && $line_num == bottom.y {
                     // Single line selection
                     let (left, right) = if $visual_start.x <= $cursor.x {
@@ -99,6 +113,20 @@ macro_rules! format_line {
     }};
 }
 
+macro_rules! format_statusline {
+    ($mode: expr, $title: expr, $lines: expr, $cursor: expr) => {{
+        let left_line = Line::from(format!(" {} ", $mode)).left_aligned();
+        let middle_line = Line::from($title).centered();
+
+        let line_delta = format!("[{}/{}] :{}", $cursor.y + 1, $lines + 1, $cursor.x);
+        let line_percentage = (($cursor.y as f32 / $lines as f32) * 100_f32).floor();
+
+        let right_line = Line::from(format!(" {}  {}% ", line_delta, line_percentage)).right_aligned();
+
+        (left_line, middle_line, right_line)
+    }};
+}
+
 // ╭──────────────────────────────────────╮
 // │ Renderer Types                       │
 // ╰──────────────────────────────────────╯
@@ -114,6 +142,7 @@ pub struct Renderer {
     terminal: Terminal<CrosstermBackend<Stdout>>,
     vertical: Layout,
     horizontal: Layout,
+    statusline: Layout,
 }
 
 impl Renderer {
@@ -130,10 +159,17 @@ impl Renderer {
             Constraint::Fill(1),
         ]);
 
+        let statusline = Layout::horizontal([
+            Constraint::Fill(1),
+            Constraint::Fill(1),
+            Constraint::Fill(1),
+        ]);
+
         Renderer {
             terminal,
             vertical,
             horizontal,
+            statusline,
         }
     }
 
@@ -141,41 +177,62 @@ impl Renderer {
         self.terminal.draw(|frame| {
             let mut lines: Vec<Line> = Vec::new();
             let mut nums: Vec<Line> = Vec::new();
-            let [buffer_vert, _, command_line_area] = self.vertical.areas(frame.area());
+            let [buffer_vert, statusline_area, command_line_area] =
+                self.vertical.areas(frame.area());
             let [num_line, _, buffer_area] = self.horizontal.areas(buffer_vert);
+            let [left_status_area, middle_status_area, right_status_area] =
+                self.statusline.areas(statusline_area);
 
-            let iter = buffer.content
+            let visible_buffer_content = buffer
+                .content
                 .iter()
                 .enumerate()
                 .skip(buffer.viewport.top)
                 .take(buffer.viewport.bottom() - buffer.viewport.top);
 
-            for (num, line) in iter {
+            for (num, line) in visible_buffer_content {
                 match buffer.mode {
                     Mode::Visual => {
                         if let Some(start) = buffer.visual_start {
                             lines.push(format_line!(line, num, start, buffer.cursor));
                         }
-                    },
+                    }
                     _ => {
                         if buffer.cursor.y == num {
                             lines.push(format_line!(line, buffer.cursor.x));
                         } else {
                             lines.push(format_line!(line));
                         }
-                    },
+                    }
                 }
 
                 nums.push(format_line!(format!("{:>3}", num + 1)));
             }
 
+            let (left_status, middle_status, right_status) = format_statusline!(
+                buffer.mode,
+                buffer.title.clone(),
+                buffer.content.len() - 1,
+                buffer.cursor
+            );
+
             frame.render_widget(Paragraph::new(lines), buffer_area);
             frame.render_widget(Paragraph::new(nums), num_line);
+            frame.render_widget(Block::new().style(STATUSLINE_STYLE), statusline_area);
+            frame.render_widget(Paragraph::new(left_status), left_status_area);
+            frame.render_widget(Paragraph::new(middle_status), middle_status_area);
+            frame.render_widget(Paragraph::new(right_status), right_status_area);
 
             if buffer.mode == Mode::Command {
-                log::info!("PREFIX: {}", buffer.command_line.prefix);
-                let cmd_content = format_line!(format!("{}{}", buffer.command_line.prefix, buffer.command_line.input), buffer.command_line.cursor.x);
-                frame.render_widget(Paragraph::new(cmd_content), command_line_area);
+                let cmd_input = format_line!(
+                    format!(
+                        "{}{}",
+                        buffer.command_line.prefix, buffer.command_line.input,
+                    ),
+                    buffer.command_line.cursor.x
+                );
+
+                frame.render_widget(Paragraph::new(cmd_input), command_line_area);
             }
         })?;
 

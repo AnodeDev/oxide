@@ -51,14 +51,10 @@ fn main() -> Result<()> {
                     if let Some(action) = input_result {
                         match editor.parse_action(action, &keybinding_manager, &tokio_runtime) {
                             Ok(_) => {}
-                            Err(e) => {
+                            Err(_) => {
                                 editor
                                     .get_active_buffer_mut()
                                     .switch_mode(ModeParams::Normal);
-                                // editor
-                                //     .get_active_buffer_mut()
-                                //     .command_line
-                                //     .display_error(e.to_string());
                             }
                         }
                     }

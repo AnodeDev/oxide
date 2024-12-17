@@ -1,5 +1,5 @@
 use crate::buffer::Error;
-use crate::buffer::{Buffer, Mode};
+use crate::buffer::{Buffer, CommandLine, Minibuffer, Mode};
 use crate::keybinding::{ModeParams, NewLineDirection};
 
 type Result<T> = std::result::Result<T, Error>;
@@ -23,9 +23,7 @@ impl Manipulation for Buffer {
                 self.cursor.x += 1;
             }
             Mode::Command => {
-                let prefix_len = self.command_line.prefix.len();
-                self.command_line.input.insert(self.command_line.cursor.x - prefix_len, character);
-                self.command_line.cursor.x += 1;
+                self.command_line.add_char(character)?;
             }
             // If user is in normal- or visual mode, something is wrong.
             Mode::Normal | Mode::Visual { .. } => return Err(Error::WrongModeError),
@@ -100,20 +98,20 @@ impl Manipulation for Buffer {
                     if self.cursor.x < self.content[self.cursor.y].len() {
                         self.content[self.cursor.y].remove(self.cursor.x);
 
-                        if !self.content[self.cursor.y].is_empty() && self.cursor.x >= self.content[self.cursor.y].len() - 1 {
+                        if !self.content[self.cursor.y].is_empty()
+                            && self.cursor.x >= self.content[self.cursor.y].len() - 1
+                        {
                             self.cursor.x -= 1;
                         }
-                    } else if self.cursor.x == self.content[self.cursor.y].len() && !self.content[self.cursor.y].is_empty() {
-                        self.cursor .x -= 1;
+                    } else if self.cursor.x == self.content[self.cursor.y].len()
+                        && !self.content[self.cursor.y].is_empty()
+                    {
+                        self.cursor.x -= 1;
                     }
                 }
             }
             Mode::Command => {
-                if self.command_line.cursor.x > 1 {
-                    let prefix_len = self.command_line.prefix.len();
-                    self.command_line.input.remove(self.command_line.cursor.x - prefix_len - 1);
-                    self.command_line.cursor.x -= 1;
-                }
+                self.command_line.remove_char()?;
             }
             // Removes the selected characters.
             Mode::Visual => {
@@ -171,11 +169,10 @@ impl Manipulation for Buffer {
                         // Checks if last line even exists.
                         match last_line {
                             Some(line) => {
-                                if line.len() > 0 {
+                                if !line.is_empty() {
                                     if bottom.x == line.len() {
                                         bottom.x -= 1;
                                     }
-
                                     self.content[bottom.y] = line[bottom.x + 1..].to_string();
 
                                     let current_line = self.content.remove(bottom.y);
@@ -216,5 +213,85 @@ impl Manipulation for Buffer {
 
             self.cursor.x = 0;
         }
+    }
+}
+
+impl Manipulation for CommandLine {
+    fn add_char(&mut self, character: char) -> Result<()> {
+        let prefix_len = self.prefix.len();
+        let input_len = self.input.len();
+
+        self.input
+            .insert(self.cursor.x - prefix_len, character);
+        self.cursor.x += 1;
+
+        Ok(())
+    }
+
+    fn remove_char(&mut self) -> Result<()> {
+        let prefix_len = self.prefix.len();
+        let input_len = self.input.len();
+
+        if !self.input.is_empty() {
+            self.input
+                .remove(self.cursor.x - prefix_len - 1);
+            self.cursor.x -= 1;
+        }
+
+        Ok(())
+    }
+
+    fn add_tab(&mut self) -> Result<()> {
+        unreachable!()
+    }
+
+    fn new_line(&mut self, _direction: NewLineDirection) {
+        unreachable!()
+    }
+
+    fn delete_line(&mut self) {
+        unreachable!()
+    }
+}
+
+impl Manipulation for Minibuffer {
+    fn add_char(&mut self, character: char) -> Result<()> {
+        let prefix_len = self.prefix.len();
+        let matched_len = self.matched_input.len();
+
+        self.input
+            .insert(self.cursor.x - (prefix_len + matched_len), character);
+        self.cursor.x += 1;
+
+        Ok(())
+    }
+
+    fn remove_char(&mut self) -> Result<()> {
+        let prefix_len = self.prefix.len();
+        let matched_len = self.matched_input.len();
+
+        if self.input.is_empty() {
+            if let Some(matched) = self.matched_input.pop() {
+                self.cursor.x -= matched.len();
+            }
+        } else {
+            self.input
+                .remove(self.cursor.x - (prefix_len + matched_len) - 1);
+            self.cursor.x -= 1;
+        }
+
+        Ok(())
+    }
+
+    fn add_tab(&mut self) -> Result<()> {
+        unreachable!()
+    }
+
+    fn new_line(&mut self, _direction: NewLineDirection) {
+        unreachable!()
+    }
+
+    fn delete_line(&mut self) {
+        unreachable!()
     }
 }

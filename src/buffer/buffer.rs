@@ -54,13 +54,6 @@ pub struct Cursor {
     pub desired_x: usize, // If line is shorter than x, the original x is stored here.
 }
 
-#[derive(Debug, Default)]
-pub struct CommandLine {
-    pub cursor: Cursor,
-    pub prefix: String,
-    pub input: String,
-}
-
 // Holds the states of the buffer. These states tell the editor if the buffer can be edited and/or
 // closed.
 pub struct BufferState {
@@ -96,6 +89,13 @@ impl std::default::Default for BufferState {
             mutable: true,
         }
     }
+}
+
+#[derive(Debug, Default)]
+pub struct CommandLine {
+    pub input: String,
+    pub prefix: String,
+    pub cursor: Cursor,
 }
 
 // The main buffer struct. Holds all the information related to the buffer
@@ -234,9 +234,10 @@ impl Buffer {
         match self.mode {
             Mode::Visual => self.visual_start = None,
             Mode::Command => {
-                self.command_line.prefix.clear();
-                self.command_line.input.clear();
-            },
+                self.command_line.prefix = String::new();
+                self.command_line.input = String::new();
+                self.command_line.cursor = Cursor::default();
+            }
             _ => {}
         }
 
@@ -245,10 +246,7 @@ impl Buffer {
                 self.visual_start = Some(self.cursor);
                 self.mode = Mode::Visual;
             }
-            ModeParams::Command {
-                prefix,
-                input,
-            } => {
+            ModeParams::Command { prefix, input } => {
                 self.command_line.prefix = prefix;
                 self.command_line.input = format!("{}", input);
                 self.command_line.cursor.x =
