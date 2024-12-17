@@ -14,7 +14,9 @@ use crate::renderer::Error;
 // │ Renderer Consts                      │
 // ╰──────────────────────────────────────╯
 
-const CURSOR_STYLE: Style = Style::new().fg(Color::Black).bg(Color::Rgb(0xf2, 0xd5, 0xcf));
+const CURSOR_STYLE: Style = Style::new()
+    .fg(Color::Black)
+    .bg(Color::Rgb(0xf2, 0xd5, 0xcf));
 const HIGHLIGHT_STYLE: Style = Style::new().bg(Color::Rgb(0x51, 0x57, 0x6d));
 const STATUSLINE_STYLE: Style = Style::new().bg(Color::Rgb(0x23, 0x26, 0x34));
 const ERROR_STYLE: Style = Style::new().fg(Color::Red);
@@ -122,7 +124,8 @@ macro_rules! format_statusline {
         let line_delta = format!("[{}/{}] :{}", $cursor.y + 1, $lines + 1, $cursor.x);
         let line_percentage = (($cursor.y as f32 / $lines as f32) * 100_f32).floor();
 
-        let right_line = Line::from(format!(" {}  {}% ", line_delta, line_percentage)).right_aligned();
+        let right_line =
+            Line::from(format!(" {}  {}% ", line_delta, line_percentage)).right_aligned();
 
         (left_line, middle_line, right_line)
     }};

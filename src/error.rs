@@ -6,6 +6,7 @@ use std::fmt;
 
 #[derive(Debug)]
 pub enum OxideError {
+    IndexError,
     BufferError(buffer::Error),
     RendererError(renderer::Error),
     UtilsError(utils::Error),
@@ -41,6 +42,7 @@ impl std::error::Error for OxideError {}
 impl fmt::Display for OxideError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            OxideError::IndexError => write!(f, "ERROR: Index was out of range."),
             OxideError::BufferError(e) => write!(f, "ERROR: {}", e),
             OxideError::RendererError(e) => write!(f, "ERROR: {}", e),
             OxideError::UtilsError(e) => write!(f, "ERROR: {}", e),

@@ -37,23 +37,22 @@ fn main() -> Result<()> {
 
     // Main loop
     while editor.is_running {
-        // Renders the buffer and makes sure the keybinding manager has the correct mode set
+        // Renders the buffer
         editor.render()?;
-        keybinding_manager.set_mode(editor.get_active_buffer().mode);
-        keybinding_manager.set_buffer_kind(editor.get_active_buffer().kind);
 
         // Checks the user keypresses
         match event::read() {
             Ok(event) => match event {
                 Event::Key(key_event) => {
-                    let input_result = keybinding_manager.handle_input(key_event);
+                    let buffer_mode = &editor.get_active_buffer()?.mode;
+                    let input_result = keybinding_manager.handle_input(buffer_mode, key_event);
 
                     if let Some(action) = input_result {
                         match editor.parse_action(action, &keybinding_manager, &tokio_runtime) {
                             Ok(_) => {}
                             Err(_) => {
                                 editor
-                                    .get_active_buffer_mut()
+                                    .get_active_buffer_mut()?
                                     .switch_mode(ModeParams::Normal);
                             }
                         }

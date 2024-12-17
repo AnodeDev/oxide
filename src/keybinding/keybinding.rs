@@ -74,7 +74,6 @@ pub struct Keybinding {
 // Stores all available keybindings as well as the currently pressed one
 pub struct KeybindingManager {
     mode_bindings: HashMap<Mode, HashMap<Option<BufferKind>, HashMap<KeySequence, Action>>>,
-    current_mode: Mode,
     current_buffer_kind: BufferKind,
     current_sequence: KeySequence,
 }
@@ -86,7 +85,6 @@ impl KeybindingManager {
     pub fn new() -> Self {
         let mut manager = KeybindingManager {
             mode_bindings: HashMap::new(),
-            current_mode: Mode::Normal,
             current_buffer_kind: BufferKind::Normal,
             current_sequence: KeySequence { keys: Vec::new() },
         };
@@ -362,7 +360,7 @@ impl KeybindingManager {
 
     // Checks the mode of the keybinding and the current buffer mode and redirects to the
     // appropriate parser
-    pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+    pub fn handle_input(&mut self, current_mode: &Mode, key_event: KeyEvent) -> Option<Action> {
         let key_binding = Keybinding {
             key: key_event.code,
             modifiers: key_event.modifiers,
@@ -370,11 +368,11 @@ impl KeybindingManager {
 
         self.current_sequence.keys.push(key_binding);
 
-        let action = match self.current_mode {
-            Mode::Normal => self.handle_normal_mode(),
-            Mode::Insert => self.handle_insert_mode(key_binding),
-            Mode::Visual { .. } => self.handle_visual_mode(),
-            Mode::Command => self.handle_command_mode(key_binding),
+        let action = match current_mode {
+            Mode::Normal => self.handle_normal_mode(current_mode),
+            Mode::Insert => self.handle_insert_mode(current_mode, key_binding),
+            Mode::Visual => self.handle_visual_mode(current_mode),
+            Mode::Command => self.handle_command_mode(current_mode, key_binding),
         };
 
         // If the keybinding exists, it's sent back
@@ -384,7 +382,7 @@ impl KeybindingManager {
             self.current_sequence.keys.clear();
             action
         } else {
-            if let Some(mode_bindings) = self.mode_bindings.get(&self.current_mode) {
+            if let Some(mode_bindings) = self.mode_bindings.get(current_mode) {
                 let mut sequence_matches = false;
 
                 // Checks if keybinding exists in any buffer kind
@@ -413,8 +411,8 @@ impl KeybindingManager {
         }
     }
 
-    fn handle_normal_mode(&self) -> Option<Action> {
-        if let Some(mode_bindings) = self.mode_bindings.get(&self.current_mode) {
+    fn handle_normal_mode(&self, current_mode: &Mode) -> Option<Action> {
+        if let Some(mode_bindings) = self.mode_bindings.get(current_mode) {
             if let Some(action) = mode_bindings
                 .get(&Some(self.current_buffer_kind.clone()))
                 .and_then(|bindings| bindings.get(&self.current_sequence))
@@ -431,14 +429,14 @@ impl KeybindingManager {
         None
     }
 
-    fn handle_insert_mode(&self, key_binding: Keybinding) -> Option<Action> {
+    fn handle_insert_mode(&self, current_mode: &Mode, key_binding: Keybinding) -> Option<Action> {
         match key_binding.key {
             KeyCode::Char(c) => Some(Action::InsertChar(c)),
             KeyCode::Tab => Some(Action::InsertTab),
             KeyCode::Backspace => Some(Action::DeleteChar),
             KeyCode::Enter => Some(Action::NewLine(NewLineDirection::Under)),
             _ => {
-                if let Some(mode_bindings) = self.mode_bindings.get(&self.current_mode) {
+                if let Some(mode_bindings) = self.mode_bindings.get(current_mode) {
                     if let Some(action) = mode_bindings
                         .get(&Some(self.current_buffer_kind.clone()))
                         .and_then(|bindings| bindings.get(&self.current_sequence))
@@ -457,8 +455,8 @@ impl KeybindingManager {
         }
     }
 
-    fn handle_visual_mode(&self) -> Option<Action> {
-        if let Some(mode_bindings) = self.mode_bindings.get(&self.current_mode) {
+    fn handle_visual_mode(&self, current_mode: &Mode) -> Option<Action> {
+        if let Some(mode_bindings) = self.mode_bindings.get(current_mode) {
             if let Some(action) = mode_bindings
                 .get(&Some(self.current_buffer_kind.clone()))
                 .and_then(|bindings| bindings.get(&self.current_sequence))
@@ -475,12 +473,12 @@ impl KeybindingManager {
         None
     }
 
-    fn handle_command_mode(&self, key_binding: Keybinding) -> Option<Action> {
+    fn handle_command_mode(&self, current_mode: &Mode, key_binding: Keybinding) -> Option<Action> {
         match key_binding.key {
             KeyCode::Char(c) => Some(Action::InsertChar(c)),
             KeyCode::Backspace => Some(Action::DeleteChar),
             _ => {
-                if let Some(mode_bindings) = self.mode_bindings.get(&self.current_mode) {
+                if let Some(mode_bindings) = self.mode_bindings.get(current_mode) {
                     if let Some(action) = mode_bindings
                         .get(&Some(self.current_buffer_kind.clone()))
                         .and_then(|bindings| bindings.get(&self.current_sequence))
@@ -497,10 +495,6 @@ impl KeybindingManager {
                 None
             }
         }
-    }
-
-    pub fn set_mode(&mut self, mode: Mode) {
-        self.current_mode = mode;
     }
 
     pub fn set_buffer_kind(&mut self, kind: BufferKind) {

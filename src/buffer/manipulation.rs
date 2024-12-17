@@ -220,8 +220,7 @@ impl Manipulation for CommandLine {
     fn add_char(&mut self, character: char) -> Result<()> {
         let prefix_len = self.prefix.len();
 
-        self.input
-            .insert(self.cursor.x - prefix_len, character);
+        self.input.insert(self.cursor.x - prefix_len, character);
         self.cursor.x += 1;
 
         Ok(())
@@ -231,8 +230,7 @@ impl Manipulation for CommandLine {
         let prefix_len = self.prefix.len();
 
         if !self.input.is_empty() {
-            self.input
-                .remove(self.cursor.x - prefix_len - 1);
+            self.input.remove(self.cursor.x - prefix_len - 1);
             self.cursor.x -= 1;
         }
 

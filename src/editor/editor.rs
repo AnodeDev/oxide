@@ -47,29 +47,21 @@ impl Editor {
     }
 
     // Borrows the current buffer
-    pub fn get_active_buffer(&mut self) -> &Buffer {
-        if self.buffers[self.active_buffer].kind == BufferKind::BufferList {
-            self.buffers[self.active_buffer].content = self
-                .buffers
-                .iter()
-                .map(|buffer| buffer.title.clone())
-                .collect();
+    pub fn get_active_buffer(&mut self) -> Result<&Buffer> {
+        if let Some(buffer) = self.buffers.get(self.active_buffer) {
+            Ok(buffer)
+        } else {
+            Err(OxideError::IndexError)
         }
-
-        &self.buffers[self.active_buffer]
     }
 
     // Borrows the current buffer as mutable
-    pub fn get_active_buffer_mut(&mut self) -> &mut Buffer {
-        if self.buffers[self.active_buffer].kind == BufferKind::BufferList {
-            self.buffers[self.active_buffer].content = self
-                .buffers
-                .iter()
-                .map(|buffer| buffer.title.clone())
-                .collect();
+    pub fn get_active_buffer_mut(&mut self) -> Result<&mut Buffer> {
+        if let Some(buffer) = self.buffers.get_mut(self.active_buffer) {
+            Ok(buffer)
+        } else {
+            Err(OxideError::IndexError)
         }
-
-        &mut self.buffers[self.active_buffer]
     }
 
     // Calls the rendering function to not borrow past the editor's lifetime
@@ -111,52 +103,55 @@ impl Editor {
         tokio_runtime: &tokio::runtime::Runtime,
     ) -> Result<()> {
         match action {
-            Action::SwitchMode(mode) => self.get_active_buffer_mut().switch_mode(mode),
+            Action::SwitchMode(mode) => {
+                self.get_active_buffer_mut()?.switch_mode(mode);
+            },
             Action::InsertChar(c) => {
-                match self.get_active_buffer_mut().add_char(c) {
+                match self.get_active_buffer_mut()?.add_char(c) {
                     Ok(_) => {}
                     Err(e) => return Err(OxideError::BufferError(e)),
                 }
 
-                if self.get_active_buffer().mode == Mode::Command {
+                if self.get_active_buffer()?.mode == Mode::Command {
                     self.fill_minibuffer();
                 }
             }
-            Action::InsertTab => match self.get_active_buffer_mut().add_tab() {
+            Action::InsertTab => match self.get_active_buffer_mut()?.add_tab() {
                 Ok(_) => {}
                 Err(e) => return Err(OxideError::BufferError(e)),
             },
-            Action::NewLine(direction) => self.get_active_buffer_mut().new_line(direction),
-            Action::DeleteLine => self.get_active_buffer_mut().delete_line(),
-            Action::MoveCursor(x, y) => self.get_active_buffer_mut().move_cursor(x, y),
-            Action::TopOfBuffer => self.get_active_buffer_mut().move_cursor_to_top(),
-            Action::EndOfBuffer => self.get_active_buffer_mut().move_cursor_to_bot(),
+            Action::NewLine(direction) => self.get_active_buffer_mut()?.new_line(direction),
+            Action::DeleteLine => self.get_active_buffer_mut()?.delete_line(),
+            Action::MoveCursor(x, y) => self.get_active_buffer_mut()?.move_cursor(x, y),
+            Action::TopOfBuffer => self.get_active_buffer_mut()?.move_cursor_to_top(),
+            Action::EndOfBuffer => self.get_active_buffer_mut()?.move_cursor_to_bot(),
             Action::Quit => self.is_running = false,
             Action::DeleteChar => {
-                match self.get_active_buffer_mut().remove_char() {
+                match self.get_active_buffer_mut()?.remove_char() {
                     Ok(_) => {}
                     Err(e) => return Err(OxideError::BufferError(e)),
                 }
 
-                if self.get_active_buffer().mode == Mode::Command {
+                if self.get_active_buffer()?.mode == Mode::Command {
                     self.fill_minibuffer();
                 }
             }
             Action::WriteBuffer => {
-                tokio_runtime.block_on(self.get_active_buffer_mut().write_buffer())?;
+                tokio_runtime.block_on(self.get_active_buffer_mut()?.write_buffer())?;
             }
             Action::ExecuteCommand => {
-                let input: &str = self.get_active_buffer_mut().get_command();
+                let input: &str = self.get_active_buffer_mut()?.get_command();
                 let commands = CommandParser::parse(input);
 
                 for command in commands {
                     self.parse_action(command, keybinding_manager, tokio_runtime)?;
                 }
 
-                self.get_active_buffer_mut().switch_mode(ModeParams::Normal);
+                self.get_active_buffer_mut()?
+                    .switch_mode(ModeParams::Normal);
             }
             Action::OpenFile(path) => {
-                tokio_runtime.block_on(self.get_active_buffer_mut().load_file(path))?;
+                tokio_runtime.block_on(self.get_active_buffer_mut()?.load_file(path))?;
             }
             _ => {}
         };
