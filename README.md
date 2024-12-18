@@ -52,3 +52,9 @@ Oxide is currently in very early beta.
     - Buffer switching
     - Plugin system
     - Buffer compression system
+
+## Contributing
+
+Contributions are very much appreciated! This is quite a large project and I'm just one person, so any help is much appreciated.
+
+If you want to contribute, make sure to read the [contributing](https://github.com/AnodeDev/oxide/blob/main/CONTRIBUTING.md) guidelines before creating a pull request.
