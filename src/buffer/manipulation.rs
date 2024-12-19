@@ -117,80 +117,58 @@ impl Manipulation for Buffer {
             Mode::Visual => {
                 if let Some(start) = self.visual_start {
                     if self.state.mutable {
-                        // Sets the top and bottom cursor positions.
-                        let (top, mut bottom) = if start.y < self.cursor.y {
+                        // Determine the top and bottom positions.
+                        let (top, bottom) = if start.y < self.cursor.y || (start.y == self.cursor.y && start.x <= self.cursor.x) {
                             (start, self.cursor)
-                        } else if start.y == self.cursor.y && start.x < self.cursor.x {
-                            (start, self.cursor)
-                        } else if start.y == self.cursor.y && start.x > self.cursor.x {
-                            (self.cursor, start)
                         } else {
                             (self.cursor, start)
                         };
 
-                        let mut selected_lines: Vec<String> = self.content[top.y..bottom.y + 1]
-                            .iter()
-                            .map(|line| line.to_string())
-                            .collect();
-
-                        // Checks is selection is on one line or multiple lines.
-                        let new_top_line = if top.y < bottom.y {
-                            selected_lines[0][..top.x].to_string()
-                        } else {
-                            let mut beginning = selected_lines[0][..top.x].to_string();
-                            let end = selected_lines[0][bottom.x + 1..].to_string();
-                            beginning.push_str(&end);
-
-                            beginning
-                        };
-
-                        // Checks if the whole line is selected.
-                        if top.x == 0
-                            && (bottom.x == selected_lines[0].len() || selected_lines.len() > 1)
-                        {
-                            self.content[top.y] = "".to_string();
-                        } else {
-                            self.content[top.y] = new_top_line;
+                        // Ensure indices are within bounds.
+                        if top.y >= self.content.len() || bottom.y >= self.content.len() {
+                            return Ok(()); // Early return for invalid indices.
                         }
 
-                        // Removes first and last line from selected_lines.
-                        selected_lines.remove(0);
-                        let last_line = selected_lines.pop();
+                        // Handle multi-line and single-line selection.
+                        if top.y == bottom.y {
+                            // Single-line selection.
+                            let line = &self.content[top.y];
+                            let new_line = if bottom.x < line.len() {
+                                let before = &line[..top.x];
+                                let after = &line[bottom.x..];
+                                format!("{}{}", before, after)
+                            } else {
+                                line[..top.x].to_string()
+                            };
+                            self.content[top.y] = new_line;
+                        } else {
+                            // Multi-line selection.
 
-                        // Removes all selected lines between first and last.
-                        for _ in selected_lines {
-                            self.content
-                                .remove((top.y + 1).clamp(0, self.content.len() - 1));
-                        }
-
-                        // Makes sure bottom.y is set correctly.
-                        bottom.y = top.y + 1;
-
-                        // Checks if last line even exists.
-                        match last_line {
-                            Some(line) => {
-                                if !line.is_empty() && line == self.content[bottom.y] {
-                                    if bottom.x == line.len() {
-                                        bottom.x -= 1;
-                                    }
-                                    self.content[bottom.y] = line[bottom.x + 1..].to_string();
-
-                                    let current_line = self.content.remove(bottom.y);
-
-                                    self.cursor.x = top.y + self.content[top.y].len();
-                                    self.content[top.y].push_str(&current_line);
-                                } else {
-                                    self.content.remove(bottom.y);
-                                    
-                                    if self.content.len() > 1 {
-                                        self.content.remove(top.y);
-                                    }
-                                }
+                            // Check if the bottom line is fully selected.
+                            if bottom.x == 0 || bottom.x >= self.content[bottom.y].len() {
+                                self.content.remove(bottom.y);
+                            } else {
+                                // Modify the bottom line after the selection end.
+                                let bottom_line = &self.content[bottom.y];
+                                self.content[bottom.y] = bottom_line[bottom.x..].to_string();
                             }
-                            None => {}
+
+                            // Remove all lines inbetween.
+                            for _ in (top.y + 1..bottom.y).rev() {
+                                self.content.remove(top.y + 1);
+                            }
+
+                            // Check if the top line is fully selected.
+                            if top.x == 0 && top.y < self.content.len() && self.content.len() > 1 {
+                                self.content.remove(top.y);
+                            } else {
+                                // Modify the top line up to the selection start.
+                                let top_line = &self.content[top.y];
+                                self.content[top.y] = top_line[..top.x].to_string();
+                            }
                         }
 
-                        // Updates the cursor position and switches back to normal mode.
+                        // Update the cursor and switch back to normal mode.
                         self.cursor.x = top.x;
                         self.cursor.y = top.y;
                         self.switch_mode(ModeParams::Normal);
