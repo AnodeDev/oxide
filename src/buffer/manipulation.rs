@@ -181,7 +181,10 @@ impl Manipulation for Buffer {
                                     self.content[top.y].push_str(&current_line);
                                 } else {
                                     self.content.remove(bottom.y);
-                                    self.content.remove(top.y);
+                                    
+                                    if self.content.len() > 1 {
+                                        self.content.remove(top.y);
+                                    }
                                 }
                             }
                             None => {}
