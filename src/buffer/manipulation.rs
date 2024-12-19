@@ -169,7 +169,7 @@ impl Manipulation for Buffer {
                         // Checks if last line even exists.
                         match last_line {
                             Some(line) => {
-                                if !line.is_empty() {
+                                if !line.is_empty() && line == self.content[bottom.y] {
                                     if bottom.x == line.len() {
                                         bottom.x -= 1;
                                     }
@@ -181,6 +181,7 @@ impl Manipulation for Buffer {
                                     self.content[top.y].push_str(&current_line);
                                 } else {
                                     self.content.remove(bottom.y);
+                                    self.content.remove(top.y);
                                 }
                             }
                             None => {}
