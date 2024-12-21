@@ -23,13 +23,14 @@ pub enum BufferKind {
     BufferList,
 }
 
-/// All available modal modes.
+// All available modal modes.
 #[derive(Debug, Eq, Hash, PartialEq, Clone, Copy)]
 pub enum Mode {
     Normal,
     Insert,
     Visual,
     Command,
+    Minibuffer,
 }
 
 impl fmt::Display for Mode {
@@ -39,6 +40,7 @@ impl fmt::Display for Mode {
             Mode::Insert => write!(f, "INSERT"),
             Mode::Visual => write!(f, "VISUAL"),
             Mode::Command => write!(f, "COMMAND"),
+            _ => write!(f, ""),
         }
     }
 }
@@ -56,6 +58,7 @@ pub struct Cursor {
 
 // Holds the states of the buffer. These states tell the editor if the buffer can be edited and/or
 // closed.
+#[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub struct BufferState {
     pub killable: bool,
     pub mutable: bool,
@@ -91,7 +94,7 @@ impl std::default::Default for BufferState {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Eq, PartialEq, Hash, Clone)]
 pub struct CommandLine {
     pub input: String,
     pub prefix: String,
@@ -99,6 +102,7 @@ pub struct CommandLine {
 }
 
 // The main buffer struct. Holds all the information related to the buffer
+#[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub struct Buffer {
     pub title: String,
     pub content: Vec<String>,
@@ -180,11 +184,9 @@ impl Buffer {
         }
     }
 
-    pub async fn from_file(path_str: &'static str, height: usize) -> Result<Self> {
-        let mut path = PathBuf::new();
+    pub async fn from_file(path: PathBuf, height: usize) -> Result<Self> {
         let mut content = String::new();
 
-        path.push(path_str);
         let file = File::open(path.clone())?;
         let mut buf_reader = BufReader::new(file);
         // If it can't find the name of the file, it won't display an empty string
@@ -192,7 +194,7 @@ impl Buffer {
 
         buf_reader.read_to_string(&mut content)?;
 
-        if let Some(name_osstr) = Path::new(path_str).file_name() {
+        if let Some(name_osstr) = path.file_name() {
             file_name = name_osstr.to_string_lossy().into_owned();
         }
         let content: Vec<String> = content.split("\n").map(|line| line.to_string()).collect();
@@ -271,6 +273,7 @@ impl Buffer {
                 }
             }
             ModeParams::Normal => self.mode = Mode::Normal,
+            ModeParams::Minibuffer => self.mode = Mode::Minibuffer,
         }
     }
 
@@ -279,11 +282,9 @@ impl Buffer {
         &self.command_line.input
     }
 
-    pub async fn load_file(&mut self, path: String) -> Result<()> {
+    pub async fn load_file(&mut self, path: &PathBuf) -> Result<()> {
         // Checks if the path points to a file.
-        if Path::new(&path).is_file() {
-            self.path = Some(Path::new(&path).to_path_buf());
-
+        if path.is_file() {
             let mut content = String::new();
 
             let file = File::open(&path)?;
@@ -299,6 +300,8 @@ impl Buffer {
             }
 
             self.content = content.split("\n").map(|line| line.to_string()).collect();
+
+            self.path = Some(path.clone());
 
             Ok(())
         } else {

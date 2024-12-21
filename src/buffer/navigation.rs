@@ -79,9 +79,9 @@ impl Navigation for Minibuffer {
         let new_y = (self.cursor.y as i32 + y).clamp(0, self.content.len() as i32 - 1) as usize;
         self.cursor.y = new_y;
 
-        let prefix_len: i32 = self.prefix.len() as i32;
+        let matched_len: i32 = self.matched_input.len() as i32;
         let input_len: i32 = self.input.len() as i32;
-        let new_x = (self.cursor.x as i32 + x).clamp(prefix_len, prefix_len + input_len) as usize;
+        let new_x = (self.cursor.x as i32 + x).clamp(0, matched_len + input_len) as usize;
 
         self.cursor.x = new_x;
         self.cursor.desired_x = new_x;

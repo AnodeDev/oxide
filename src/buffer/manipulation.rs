@@ -1,5 +1,4 @@
-use crate::buffer::Error;
-use crate::buffer::{Buffer, CommandLine, Minibuffer, Mode};
+use crate::buffer::{Buffer, CommandLine, Minibuffer, MinibufferKind, Mode, Error};
 use crate::keybinding::{ModeParams, NewLineDirection};
 
 type Result<T> = std::result::Result<T, Error>;
@@ -25,8 +24,7 @@ impl Manipulation for Buffer {
             Mode::Command => {
                 self.command_line.add_char(character)?;
             }
-            // If user is in normal- or visual mode, something is wrong.
-            Mode::Normal | Mode::Visual { .. } => return Err(Error::WrongModeError),
+            _ => return Err(Error::WrongModeError),
         };
 
         Ok(())
@@ -110,15 +108,14 @@ impl Manipulation for Buffer {
                     }
                 }
             }
-            Mode::Command => {
-                self.command_line.remove_char()?;
-            }
             // Removes the selected characters.
             Mode::Visual => {
                 if let Some(start) = self.visual_start {
                     if self.state.mutable {
                         // Determine the top and bottom positions.
-                        let (top, bottom) = if start.y < self.cursor.y || (start.y == self.cursor.y && start.x <= self.cursor.x) {
+                        let (top, bottom) = if start.y < self.cursor.y
+                            || (start.y == self.cursor.y && start.x <= self.cursor.x)
+                        {
                             (start, self.cursor)
                         } else {
                             (self.cursor, start)
@@ -175,6 +172,8 @@ impl Manipulation for Buffer {
                     }
                 }
             }
+            Mode::Command => self.command_line.remove_char()?,
+            Mode::Minibuffer => return Err(Error::WrongModeError),
         }
 
         Ok(())
@@ -234,27 +233,33 @@ impl Manipulation for CommandLine {
 
 impl Manipulation for Minibuffer {
     fn add_char(&mut self, character: char) -> Result<()> {
-        let prefix_len = self.prefix.len();
         let matched_len = self.matched_input.len();
 
         self.input
-            .insert(self.cursor.x - (prefix_len + matched_len), character);
+            .insert(self.cursor.x - matched_len, character);
         self.cursor.x += 1;
 
         Ok(())
     }
 
     fn remove_char(&mut self) -> Result<()> {
-        let prefix_len = self.prefix.len();
         let matched_len = self.matched_input.len();
 
         if self.input.is_empty() {
-            if let Some(matched) = self.matched_input.pop() {
-                self.cursor.x -= matched.len();
+            if self.matched_input.pop().is_some() {
+                match &mut self.kind {
+                    MinibufferKind::File(path) => {
+                        path.pop();
+                    },
+                    _ => {},
+                }
             }
         } else {
             self.input
-                .remove(self.cursor.x - (prefix_len + matched_len) - 1);
+                .remove(self.cursor.x - matched_len - 1);
+        }
+
+        if self.cursor.x > 0 {
             self.cursor.x -= 1;
         }
 

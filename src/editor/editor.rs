@@ -3,10 +3,8 @@ use ratatui::Terminal;
 
 use std::io::Stdout;
 
-use crate::buffer::{
-    Buffer, BufferKind, Manipulation, Minibuffer, MinibufferKind, Mode, Navigation,
-};
-use crate::keybinding::{Action, CommandParser, KeybindingManager, ModeParams, COMMANDS};
+use crate::buffer::{Buffer, Manipulation, Minibuffer, MinibufferKind, Navigation, Mode};
+use crate::keybinding::{Action, CommandParser, KeybindingManager, ModeParams};
 use crate::renderer::Renderer;
 use crate::OxideError;
 
@@ -15,6 +13,10 @@ use crate::OxideError;
 // ╰──────────────────────────────────────╯
 
 type Result<T> = std::result::Result<T, crate::OxideError>;
+
+// ╭──────────────────────────────────────╮
+// │ Editor Enums                         │
+// ╰──────────────────────────────────────╯
 
 // ╭──────────────────────────────────────╮
 // │ Editor Struct                        │
@@ -68,31 +70,15 @@ impl Editor {
     pub fn render(&mut self) -> Result<()> {
         let buffer = &self.buffers[self.active_buffer];
 
-        self.renderer.render_buffer(buffer)?;
+        let minibuffer: Option<&Minibuffer> = if buffer.mode == Mode::Minibuffer {
+            Some(&self.minibuffer)
+        } else {
+            None
+        };
+
+        self.renderer.render(buffer, minibuffer)?;
 
         Ok(())
-    }
-
-    fn fill_minibuffer(&mut self) {
-        let mut matches: Vec<String> = Vec::new();
-
-        match self.minibuffer.kind {
-            MinibufferKind::Command => {
-                for command in COMMANDS {
-                    if command.contains(&self.minibuffer.input) {
-                        matches.push(String::from(command));
-                    }
-                }
-
-                let match_len = matches.len();
-                self.minibuffer.content = matches;
-
-                if match_len != 0 && self.minibuffer.cursor.y > match_len - 1 {
-                    self.minibuffer.cursor.y = match_len - 1;
-                }
-            }
-            _ => {}
-        }
     }
 
     // Parses the keybinding and executes the corresponding action
@@ -102,59 +88,98 @@ impl Editor {
         keybinding_manager: &KeybindingManager,
         tokio_runtime: &tokio::runtime::Runtime,
     ) -> Result<()> {
-        match action {
-            Action::SwitchMode(mode) => {
-                self.get_active_buffer_mut()?.switch_mode(mode);
-            },
-            Action::InsertChar(c) => {
-                match self.get_active_buffer_mut()?.add_char(c) {
-                    Ok(_) => {}
-                    Err(e) => return Err(OxideError::BufferError(e)),
+        if self.get_active_buffer()?.mode != Mode::Minibuffer {
+            match action {
+                Action::SwitchMode(mode) => {
+                    self.get_active_buffer_mut()?.switch_mode(mode);
                 }
+                Action::InsertChar(c) => self.get_active_buffer_mut()?.add_char(c)?,
+                Action::InsertTab => self.get_active_buffer_mut()?.add_tab()?,
+                Action::NewLine(direction) => self.get_active_buffer_mut()?.new_line(direction),
+                Action::DeleteLine => self.get_active_buffer_mut()?.delete_line(),
+                Action::MoveCursor(x, y) => self.get_active_buffer_mut()?.move_cursor(x, y),
+                Action::TopOfBuffer => self.get_active_buffer_mut()?.move_cursor_to_top(),
+                Action::EndOfBuffer => self.get_active_buffer_mut()?.move_cursor_to_bot(),
+                Action::Quit => self.is_running = false,
+                Action::DeleteChar => self.get_active_buffer_mut()?.remove_char()?,
+                Action::WriteBuffer => {
+                    tokio_runtime.block_on(self.get_active_buffer_mut()?.write_buffer())?
+                }
+                Action::ExecuteCommand => {
+                    let input: &str = self.get_active_buffer_mut()?.get_command();
+                    let commands = CommandParser::parse(input);
 
-                if self.get_active_buffer()?.mode == Mode::Command {
-                    self.fill_minibuffer();
-                }
-            }
-            Action::InsertTab => match self.get_active_buffer_mut()?.add_tab() {
-                Ok(_) => {}
-                Err(e) => return Err(OxideError::BufferError(e)),
-            },
-            Action::NewLine(direction) => self.get_active_buffer_mut()?.new_line(direction),
-            Action::DeleteLine => self.get_active_buffer_mut()?.delete_line(),
-            Action::MoveCursor(x, y) => self.get_active_buffer_mut()?.move_cursor(x, y),
-            Action::TopOfBuffer => self.get_active_buffer_mut()?.move_cursor_to_top(),
-            Action::EndOfBuffer => self.get_active_buffer_mut()?.move_cursor_to_bot(),
-            Action::Quit => self.is_running = false,
-            Action::DeleteChar => {
-                match self.get_active_buffer_mut()?.remove_char() {
-                    Ok(_) => {}
-                    Err(e) => return Err(OxideError::BufferError(e)),
-                }
+                    for command in commands {
+                        self.parse_action(command, keybinding_manager, tokio_runtime)?;
+                    }
 
-                if self.get_active_buffer()?.mode == Mode::Command {
-                    self.fill_minibuffer();
+                    self.get_active_buffer_mut()?
+                        .switch_mode(ModeParams::Normal);
                 }
-            }
-            Action::WriteBuffer => {
-                tokio_runtime.block_on(self.get_active_buffer_mut()?.write_buffer())?;
-            }
-            Action::ExecuteCommand => {
-                let input: &str = self.get_active_buffer_mut()?.get_command();
-                let commands = CommandParser::parse(input);
-
-                for command in commands {
-                    self.parse_action(command, keybinding_manager, tokio_runtime)?;
+                Action::OpenFile(path) => {
+                    tokio_runtime.block_on(self.get_active_buffer_mut()?.load_file(&path))?;
                 }
+                Action::Minibuffer(kind) => {
+                    self.get_active_buffer_mut()?.switch_mode(ModeParams::Minibuffer);
 
-                self.get_active_buffer_mut()?
-                    .switch_mode(ModeParams::Normal);
+                    match kind {
+                        MinibufferKind::Buffer(_) => {
+                            let mut buffers: Vec<String> = Vec::new();
+
+                            for buffer in &self.buffers {
+                                buffers.push(buffer.title.clone());
+                            }
+
+                            self.minibuffer.kind = MinibufferKind::Buffer(buffers);
+                        }
+                        _ => self.minibuffer.kind = kind,
+                    }
+
+                    self.minibuffer.fill()?;
+                }
+                _ => {}
             }
-            Action::OpenFile(path) => {
-                tokio_runtime.block_on(self.get_active_buffer_mut()?.load_file(path))?;
+        } else {
+            match action {
+                Action::Escape => self.get_active_buffer_mut()?.switch_mode(ModeParams::Normal),
+                Action::InsertChar(c) => self.minibuffer.add_char(c)?,
+                Action::MoveCursor(x, y) => self.minibuffer.move_cursor(x, y),
+                Action::DeleteChar => self.minibuffer.remove_char()?,
+                Action::Append => self.minibuffer.append(),
+                Action::ExecuteCommand => match self.minibuffer.execute()? {
+                    Some(action) => {
+                        match action {
+                            Action::OpenFile(path) => {
+                                if self.get_active_buffer()?.path.is_some() {
+                                    tokio_runtime.block_on(self.get_active_buffer_mut()?.load_file(&path))?;
+                                } else {
+                                    let height = self.renderer.get_terminal_size().height as usize;
+                                    let buffer = tokio_runtime.block_on(Buffer::from_file(path, height))?;
+
+                                    self.buffers.push(buffer);
+                                    self.active_buffer = self.buffers.len() - 1;
+                                }
+                            },
+                            Action::OpenBuffer(num) => {
+                                if num < self.buffers.len() {
+                                    self.active_buffer = num;
+                                } else {
+                                    return Err(OxideError::IndexError);
+                                }
+                            }
+                            _ => {},
+                        }
+
+                        self.minibuffer = Minibuffer::default();
+                        self.get_active_buffer_mut()?.switch_mode(ModeParams::Normal);
+                    },
+                    None => {},
+                },
+                _ => {},
             }
-            _ => {}
-        };
+
+            self.minibuffer.fill()?;
+        }
 
         Ok(())
     }

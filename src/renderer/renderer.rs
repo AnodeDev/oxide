@@ -2,12 +2,12 @@ use ratatui::layout::{Constraint, Layout};
 use ratatui::prelude::*;
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Paragraph};
+use ratatui::widgets::{Block, Clear, Paragraph};
 use ratatui::Terminal;
 
 use std::io::Stdout;
 
-use crate::buffer::{Buffer, Mode};
+use crate::buffer::{Buffer, Minibuffer, Mode};
 use crate::renderer::Error;
 
 // ╭──────────────────────────────────────╮
@@ -17,9 +17,10 @@ use crate::renderer::Error;
 const CURSOR_STYLE: Style = Style::new()
     .fg(Color::Black)
     .bg(Color::Rgb(0xf2, 0xd5, 0xcf));
-const HIGHLIGHT_STYLE: Style = Style::new().bg(Color::Rgb(0x51, 0x57, 0x6d));
-const STATUSLINE_STYLE: Style = Style::new().bg(Color::Rgb(0x23, 0x26, 0x34));
-const ERROR_STYLE: Style = Style::new().fg(Color::Red);
+const HIGHLIGHT_STYLE: Style = Style::new().bg(Color::Rgb(0x45, 0x47, 0x5a));
+const ELEMENT_STYLE: Style = Style::new().bg(Color::Rgb(0x11, 0x11, 0x1b));
+const PREFIX_STYLE: Style = Style::new().fg(Color::Black).bg(Color::Blue);
+const _ERROR_STYLE: Style = Style::new().fg(Color::Red);
 
 // ╭──────────────────────────────────────╮
 // │ Renderer Macros                      │
@@ -62,19 +63,17 @@ macro_rules! format_line {
         }
     }};
 
-    ($line:expr, $line_num:expr, $visual_start:expr, $cursor:expr) => {{
+    ($line:expr, $line_num:expr, $start:expr, $cursor:expr) => {{
         let mut spans: Vec<Span> = Vec::new();
         let line_str = format!("{} ", $line);
 
         // Sets the top and bottom cursor
-        let (top, bottom) = if $visual_start.y < $cursor.y {
-            ($visual_start, $cursor)
-        } else if $visual_start.y == $cursor.y && $cursor.x < $cursor.x {
-            ($visual_start, $cursor)
-        } else if $visual_start.y == $cursor.y && $visual_start.x > $cursor.x {
-            ($cursor, $visual_start)
+        let (top, bottom) = if $start.y < $cursor.y
+            || ($start.y == $cursor.y && $start.x <= $cursor.x)
+        {
+            ($start, $cursor)
         } else {
-            ($cursor, $visual_start)
+            ($cursor, $start)
         };
 
         for (num, c) in line_str.chars().enumerate() {
@@ -83,10 +82,10 @@ macro_rules! format_line {
             let is_selected: bool = if $line_num >= top.y && $line_num <= bottom.y {
                 if $line_num == top.y && $line_num == bottom.y {
                     // Single line selection
-                    let (left, right) = if $visual_start.x <= $cursor.x {
-                        ($visual_start.x, $cursor.x)
+                    let (left, right) = if $start.x <= $cursor.x {
+                        ($start.x, $cursor.x)
                     } else {
-                        ($cursor.x, $visual_start.x)
+                        ($cursor.x, $start.x)
                     };
                     num >= left && num <= right
                 } else if $line_num == top.y {
@@ -122,12 +121,54 @@ macro_rules! format_statusline {
         let middle_line = Line::from($title).centered();
 
         let line_delta = format!("[{}/{}] :{}", $cursor.y + 1, $lines + 1, $cursor.x);
-        let line_percentage = (($cursor.y as f32 / $lines as f32) * 100_f32).floor();
+        let line_percentage = if $lines > 0 {
+            (($cursor.y as f32 / $lines as f32) * 100_f32).floor()
+        } else {
+            100.0
+        };
 
         let right_line =
             Line::from(format!(" {}  {}% ", line_delta, line_percentage)).right_aligned();
 
         (left_line, middle_line, right_line)
+    }};
+}
+
+macro_rules! format_minibuffer {
+    ($prefix:expr, $input:expr, $matched:expr, $x_pos:expr) => {{
+        let mut input: Vec<Span> = vec![Span::from($prefix).style(PREFIX_STYLE)];
+        let mut spans: Vec<Span> = Vec::new();
+        let mut matched: Vec<Span> = Vec::new();
+        let line_str = format!("{} ", $input);
+
+        for (num, entry) in $matched.iter().enumerate() {
+            let span = if entry != "/" {
+                Span::from(format!("{}/", entry))
+            } else {
+                Span::from(entry.to_string())
+            };
+
+            if num == $x_pos {
+                matched.push(span.style(CURSOR_STYLE));
+            } else {
+                matched.push(span);
+            }
+        }
+
+        for (num, c) in line_str.chars().enumerate() {
+            let span = Span::from(c.to_string());
+
+            if $x_pos >= $matched.len() && num == $x_pos - $matched.len() {
+                spans.push(span.style(CURSOR_STYLE));
+            } else {
+                spans.push(span);
+            }
+        }
+
+        input.append(&mut matched);
+        input.append(&mut spans);
+
+        Line::from(input)
     }};
 }
 
@@ -177,7 +218,7 @@ impl Renderer {
         }
     }
 
-    pub fn render_buffer(&mut self, buffer: &Buffer) -> Result<()> {
+    pub fn render(&mut self, buffer: &Buffer, minibuffer_opt: Option<&Minibuffer>) -> Result<()> {
         self.terminal.draw(|frame| {
             let mut lines: Vec<Line> = Vec::new();
             let mut nums: Vec<Line> = Vec::new();
@@ -213,37 +254,61 @@ impl Renderer {
                 nums.push(format_line!(format!("{:>3}", num + 1)));
             }
 
-            let (left_status, middle_status, right_status) = format_statusline!(
-                buffer.mode,
-                buffer.title.clone(),
-                buffer.content.len() - 1,
-                buffer.cursor
-            );
 
             frame.render_widget(Paragraph::new(lines), buffer_area);
             frame.render_widget(Paragraph::new(nums), num_line);
-            frame.render_widget(Block::new().style(STATUSLINE_STYLE), statusline_area);
-            frame.render_widget(Paragraph::new(left_status), left_status_area);
-            frame.render_widget(Paragraph::new(middle_status), middle_status_area);
-            frame.render_widget(Paragraph::new(right_status), right_status_area);
 
-            if buffer.mode == Mode::Command {
-                let cmd_input = format_line!(
-                    format!(
-                        "{}{}",
-                        buffer.command_line.prefix, buffer.command_line.input,
-                    ),
-                    buffer.command_line.cursor.x
+            if let Some(minibuffer) = minibuffer_opt {
+                let [_, minibuffer_area] =
+                    Layout::vertical([Constraint::Fill(1), Constraint::Length(minibuffer.content.len() as u16 + 1)])
+                        .areas(frame.area());
+
+                let [mb_content_area, mb_input_area] =
+                    Layout::vertical([Constraint::Fill(1), Constraint::Length(1)])
+                        .areas(minibuffer_area);
+
+                let [mb_padding, mb_content] = Layout::horizontal([Constraint::Length(1), Constraint::Fill(1)])
+                        .areas(mb_content_area);
+
+                let minibuffer_input = format_minibuffer!(minibuffer.prefix.clone(), minibuffer.input, minibuffer.matched_input, minibuffer.cursor.x);
+                let mut minibuffer_content: Vec<Line> = Vec::new();
+
+                for (num, entry) in minibuffer.content.iter().enumerate() {
+                    minibuffer_content.push(format_line!(entry, num, minibuffer.cursor.y));
+                }
+
+                frame.render_widget(Clear, mb_padding);
+                frame.render_widget(Clear, mb_content);
+                frame.render_widget(Block::new().style(ELEMENT_STYLE), mb_padding);
+                frame.render_widget(Paragraph::new(minibuffer_content).style(ELEMENT_STYLE), mb_content);
+                frame.render_widget(Paragraph::new(minibuffer_input), mb_input_area);
+            } else {
+                let (left_status, middle_status, right_status) = format_statusline!(
+                    buffer.mode,
+                    buffer.title.clone(),
+                    buffer.content.len() - 1,
+                    buffer.cursor
                 );
 
-                frame.render_widget(Paragraph::new(cmd_input), command_line_area);
+                frame.render_widget(Block::new().style(ELEMENT_STYLE), statusline_area);
+                frame.render_widget(Paragraph::new(left_status), left_status_area);
+                frame.render_widget(Paragraph::new(middle_status), middle_status_area);
+                frame.render_widget(Paragraph::new(right_status), right_status_area);
+
+                if buffer.mode == Mode::Command {
+                    let cmd_input = format_line!(
+                        format!(
+                            "{}{}",
+                            buffer.command_line.prefix, buffer.command_line.input,
+                        ),
+                        buffer.command_line.cursor.x
+                    );
+
+                    frame.render_widget(Paragraph::new(cmd_input), command_line_area);
+                }
             }
         })?;
 
-        Ok(())
-    }
-
-    pub fn render_mini_buffer(&mut self) -> Result<()> {
         Ok(())
     }
 

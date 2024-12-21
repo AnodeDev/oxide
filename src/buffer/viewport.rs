@@ -1,4 +1,5 @@
 // The visible part of the buffer content
+#[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub struct Viewport {
     pub top: usize,
     pub height: usize,
