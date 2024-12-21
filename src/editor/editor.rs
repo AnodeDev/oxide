@@ -141,7 +141,10 @@ impl Editor {
             }
         } else {
             match action {
-                Action::Escape => self.get_active_buffer_mut()?.switch_mode(ModeParams::Normal),
+                Action::Escape => {
+                    self.minibuffer = Minibuffer::default();
+                    self.get_active_buffer_mut()?.switch_mode(ModeParams::Normal);
+                },
                 Action::InsertChar(c) => self.minibuffer.add_char(c)?,
                 Action::MoveCursor(x, y) => self.minibuffer.move_cursor(x, y),
                 Action::DeleteChar => self.minibuffer.remove_char()?,

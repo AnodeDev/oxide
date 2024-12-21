@@ -94,7 +94,7 @@ impl Minibuffer {
 
     pub fn append(&mut self) {
         if let Some(item) = self.content.get(self.cursor.y) {
-            self.cursor.x = item.len();
+            self.cursor.x += item.len() - self.input.len();
             self.input = item.to_string();
         }
     }
