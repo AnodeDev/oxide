@@ -46,10 +46,10 @@ Oxide is currently in very early beta.
 
 - In Progress:
     - Emacs-like minibuffer
+    - Buffer switching
     - Config language ([patina](https://github.com/AnodeDev/patina))
 
 - Upcomming:
-    - Buffer switching
     - Plugin system
     - Buffer compression system
 
