@@ -251,7 +251,11 @@ impl Renderer {
                     }
                 }
 
-                nums.push(format_line!(format!("{:>3}", num + 1)));
+                if num == buffer.cursor.y {
+                    nums.push(Line::from(format!("{:<3}", num + 1)).fg(Color::Rgb(0xf2, 0xd5, 0xcf)));
+                } else {
+                    nums.push(Line::from(format!("{:>3}", num + 1)));
+                }
             }
 
 
