@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::env;
 use std::fs;
 
@@ -73,6 +73,24 @@ impl Minibuffer {
                         }
                     }
                 }
+
+                let mut dirs: Vec<String> = Vec::new();
+                let mut files: Vec<String> = Vec::new();
+
+                for entry in &matches {
+                    if Path::new(&format!("{}/{}", path.display(), entry)).is_dir() {
+                        dirs.push(entry.to_string());
+                    } else {
+                        files.push(entry.to_string());
+                    }
+                }
+
+                dirs.sort();
+                files.sort();
+
+                matches.clear();
+                matches.append(&mut dirs);
+                matches.append(&mut files);
             },
             MinibufferKind::Buffer(buffer_list) => {
                 self.prefix = "Find Buffer:".to_string();
@@ -82,12 +100,13 @@ impl Minibuffer {
                         matches.push(entry.to_string());
                     }
                 }
+
+                matches.sort();
             },
             _ => {},
         }
 
         self.content = matches;
-        self.content.sort();
 
         Ok(())
     }
