@@ -259,7 +259,13 @@ impl Buffer {
             ModeParams::Insert { insert_direction } => {
                 if self.state.mutable {
                     match insert_direction {
-                        InsertDirection::Beginning => self.cursor.x = 0,
+                        InsertDirection::Beginning => {
+                            if let Some(index) = self.content[self.cursor.y].char_indices()
+                                .find(|(_, c)| !c.is_whitespace())
+                                .map(|(index, _)| index) {
+                                self.cursor.x = index;
+                            }
+                        },
                         InsertDirection::Before => {}
                         InsertDirection::After => {
                             if self.content[self.cursor.y].len() > self.cursor.x {
