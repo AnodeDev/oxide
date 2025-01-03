@@ -3,7 +3,7 @@ use ratatui::Terminal;
 
 use std::io::Stdout;
 
-use crate::buffer::{Buffer, Manipulation, Minibuffer, MinibufferKind, Navigation, Mode};
+use crate::buffer::{Buffer, Manipulation, Minibuffer, MinibufferKind, Mode, Navigation};
 use crate::keybinding::{Action, CommandParser, KeybindingManager, ModeParams};
 use crate::renderer::Renderer;
 use crate::OxideError;
@@ -120,7 +120,8 @@ impl Editor {
                     tokio_runtime.block_on(self.get_active_buffer_mut()?.load_file(&path))?;
                 }
                 Action::Minibuffer(kind) => {
-                    self.get_active_buffer_mut()?.switch_mode(ModeParams::Minibuffer);
+                    self.get_active_buffer_mut()?
+                        .switch_mode(ModeParams::Minibuffer);
 
                     match kind {
                         MinibufferKind::Buffer(_) => {
@@ -143,8 +144,9 @@ impl Editor {
             match action {
                 Action::Escape => {
                     self.minibuffer = Minibuffer::default();
-                    self.get_active_buffer_mut()?.switch_mode(ModeParams::Normal);
-                },
+                    self.get_active_buffer_mut()?
+                        .switch_mode(ModeParams::Normal);
+                }
                 Action::InsertChar(c) => self.minibuffer.add_char(c)?,
                 Action::MoveCursor(x, y) => self.minibuffer.move_cursor(x, y),
                 Action::DeleteChar => self.minibuffer.remove_char()?,
@@ -154,15 +156,17 @@ impl Editor {
                         match action {
                             Action::OpenFile(path) => {
                                 if self.get_active_buffer()?.path.is_some() {
-                                    tokio_runtime.block_on(self.get_active_buffer_mut()?.load_file(&path))?;
+                                    tokio_runtime
+                                        .block_on(self.get_active_buffer_mut()?.load_file(&path))?;
                                 } else {
                                     let height = self.renderer.get_terminal_size().height as usize;
-                                    let buffer = tokio_runtime.block_on(Buffer::from_file(path, height))?;
+                                    let buffer =
+                                        tokio_runtime.block_on(Buffer::from_file(path, height))?;
 
                                     self.buffers.push(buffer);
                                     self.active_buffer = self.buffers.len() - 1;
                                 }
-                            },
+                            }
                             Action::OpenBuffer(num) => {
                                 if num < self.buffers.len() {
                                     self.active_buffer = num;
@@ -170,15 +174,16 @@ impl Editor {
                                     return Err(OxideError::IndexError);
                                 }
                             }
-                            _ => {},
+                            _ => {}
                         }
 
                         self.minibuffer = Minibuffer::default();
-                        self.get_active_buffer_mut()?.switch_mode(ModeParams::Normal);
-                    },
-                    None => {},
+                        self.get_active_buffer_mut()?
+                            .switch_mode(ModeParams::Normal);
+                    }
+                    None => {}
                 },
-                _ => {},
+                _ => {}
             }
 
             self.minibuffer.fill()?;

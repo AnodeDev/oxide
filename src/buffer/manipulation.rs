@@ -1,4 +1,4 @@
-use crate::buffer::{Buffer, CommandLine, Minibuffer, MinibufferKind, Mode, Error};
+use crate::buffer::{Buffer, CommandLine, Error, Minibuffer, MinibufferKind, Mode};
 use crate::keybinding::{ModeParams, NewLineDirection};
 
 type Result<T> = std::result::Result<T, Error>;
@@ -235,8 +235,7 @@ impl Manipulation for Minibuffer {
     fn add_char(&mut self, character: char) -> Result<()> {
         let matched_len = self.matched_input.len();
 
-        self.input
-            .insert(self.cursor.x - matched_len, character);
+        self.input.insert(self.cursor.x - matched_len, character);
         self.cursor.x += 1;
 
         Ok(())
@@ -250,13 +249,12 @@ impl Manipulation for Minibuffer {
                 match &mut self.kind {
                     MinibufferKind::File(path) => {
                         path.pop();
-                    },
-                    _ => {},
+                    }
+                    _ => {}
                 }
             }
         } else {
-            self.input
-                .remove(self.cursor.x - matched_len - 1);
+            self.input.remove(self.cursor.x - matched_len - 1);
         }
 
         if self.cursor.x > 0 {

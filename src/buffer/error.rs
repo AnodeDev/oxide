@@ -49,7 +49,9 @@ impl fmt::Display for Error {
             ),
             Error::ConvertToPathError => write!(f, "ConvertToPathError: Failed to convert to path"),
             Error::ReadDirectoryError => write!(f, "ReadDirectoryError: Failed to read directory"),
-            Error::NoMatchError => write!(f, "NoMatchError: Input did not match any of the entries"),
+            Error::NoMatchError => {
+                write!(f, "NoMatchError: Input did not match any of the entries")
+            }
             Error::IoError(e) => write!(f, "{}", e),
         }
     }

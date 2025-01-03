@@ -68,13 +68,12 @@ macro_rules! format_line {
         let line_str = format!("{} ", $line);
 
         // Sets the top and bottom cursor
-        let (top, bottom) = if $start.y < $cursor.y
-            || ($start.y == $cursor.y && $start.x <= $cursor.x)
-        {
-            ($start, $cursor)
-        } else {
-            ($cursor, $start)
-        };
+        let (top, bottom) =
+            if $start.y < $cursor.y || ($start.y == $cursor.y && $start.x <= $cursor.x) {
+                ($start, $cursor)
+            } else {
+                ($cursor, $start)
+            };
 
         for (num, c) in line_str.chars().enumerate() {
             let span = Span::from(c.to_string());
@@ -252,29 +251,38 @@ impl Renderer {
                 }
 
                 if num == buffer.cursor.y {
-                    nums.push(Line::from(format!("{:<3}", num + 1)).fg(Color::Rgb(0xf2, 0xd5, 0xcf)));
+                    nums.push(
+                        Line::from(format!("{:<3}", num + 1)).fg(Color::Rgb(0xf2, 0xd5, 0xcf)),
+                    );
                 } else {
                     nums.push(Line::from(format!("{:>3}", num + 1)));
                 }
             }
 
-
             frame.render_widget(Paragraph::new(lines), buffer_area);
             frame.render_widget(Paragraph::new(nums), num_line);
 
             if let Some(minibuffer) = minibuffer_opt {
-                let [_, minibuffer_area] =
-                    Layout::vertical([Constraint::Fill(1), Constraint::Length(minibuffer.content.len() as u16 + 1)])
-                        .areas(frame.area());
+                let [_, minibuffer_area] = Layout::vertical([
+                    Constraint::Fill(1),
+                    Constraint::Length(minibuffer.content.len() as u16 + 1),
+                ])
+                .areas(frame.area());
 
                 let [mb_content_area, mb_input_area] =
                     Layout::vertical([Constraint::Fill(1), Constraint::Length(1)])
                         .areas(minibuffer_area);
 
-                let [mb_padding, mb_content] = Layout::horizontal([Constraint::Length(1), Constraint::Fill(1)])
+                let [mb_padding, mb_content] =
+                    Layout::horizontal([Constraint::Length(1), Constraint::Fill(1)])
                         .areas(mb_content_area);
 
-                let minibuffer_input = format_minibuffer!(minibuffer.prefix.clone(), minibuffer.input, minibuffer.matched_input, minibuffer.cursor.x);
+                let minibuffer_input = format_minibuffer!(
+                    minibuffer.prefix.clone(),
+                    minibuffer.input,
+                    minibuffer.matched_input,
+                    minibuffer.cursor.x
+                );
                 let mut minibuffer_content: Vec<Line> = Vec::new();
 
                 for (num, entry) in minibuffer.content.iter().enumerate() {
@@ -284,7 +292,10 @@ impl Renderer {
                 frame.render_widget(Clear, mb_padding);
                 frame.render_widget(Clear, mb_content);
                 frame.render_widget(Block::new().style(ELEMENT_STYLE), mb_padding);
-                frame.render_widget(Paragraph::new(minibuffer_content).style(ELEMENT_STYLE), mb_content);
+                frame.render_widget(
+                    Paragraph::new(minibuffer_content).style(ELEMENT_STYLE),
+                    mb_content,
+                );
                 frame.render_widget(Paragraph::new(minibuffer_input), mb_input_area);
             } else {
                 let (left_status, middle_status, right_status) = format_statusline!(

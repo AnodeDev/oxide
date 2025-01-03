@@ -256,7 +256,6 @@ impl KeybindingManager {
             Action::Escape,
         );
 
-
         // INSERT MODE
         self.add_binding(
             Mode::Insert,
@@ -539,11 +538,26 @@ impl KeybindingManager {
 
     fn handle_insert_mode(&self, current_mode: &Mode, key_binding: Keybinding) -> Option<Action> {
         match key_binding {
-            Keybinding { key: KeyCode::Char(c), modifiers: KeyModifiers::NONE } => Some(Action::InsertChar(c)),
-            Keybinding { key: KeyCode::Char(c), modifiers: KeyModifiers::SHIFT } => Some(Action::InsertChar(c)),
-            Keybinding { key: KeyCode::Tab, modifiers: KeyModifiers::SHIFT } => Some(Action::InsertTab),
-            Keybinding { key: KeyCode::Backspace, .. } => Some(Action::DeleteChar),
-            Keybinding { key: KeyCode::Enter, .. } => Some(Action::NewLine(NewLineDirection::Under)),
+            Keybinding {
+                key: KeyCode::Char(c),
+                modifiers: KeyModifiers::NONE,
+            } => Some(Action::InsertChar(c)),
+            Keybinding {
+                key: KeyCode::Char(c),
+                modifiers: KeyModifiers::SHIFT,
+            } => Some(Action::InsertChar(c)),
+            Keybinding {
+                key: KeyCode::Tab,
+                modifiers: KeyModifiers::SHIFT,
+            } => Some(Action::InsertTab),
+            Keybinding {
+                key: KeyCode::Backspace,
+                ..
+            } => Some(Action::DeleteChar),
+            Keybinding {
+                key: KeyCode::Enter,
+                ..
+            } => Some(Action::NewLine(NewLineDirection::Under)),
             _ => {
                 if let Some(mode_bindings) = self.mode_bindings.get(current_mode) {
                     if let Some(action) = mode_bindings
@@ -584,9 +598,18 @@ impl KeybindingManager {
 
     fn handle_command_mode(&self, current_mode: &Mode, key_binding: Keybinding) -> Option<Action> {
         match key_binding {
-            Keybinding { key: KeyCode::Char(c), modifiers: KeyModifiers::NONE } => Some(Action::InsertChar(c)),
-            Keybinding { key: KeyCode::Char(c), modifiers: KeyModifiers::SHIFT } => Some(Action::InsertChar(c)),
-            Keybinding { key: KeyCode::Backspace, .. } => Some(Action::DeleteChar),
+            Keybinding {
+                key: KeyCode::Char(c),
+                modifiers: KeyModifiers::NONE,
+            } => Some(Action::InsertChar(c)),
+            Keybinding {
+                key: KeyCode::Char(c),
+                modifiers: KeyModifiers::SHIFT,
+            } => Some(Action::InsertChar(c)),
+            Keybinding {
+                key: KeyCode::Backspace,
+                ..
+            } => Some(Action::DeleteChar),
             _ => {
                 if let Some(mode_bindings) = self.mode_bindings.get(current_mode) {
                     if let Some(action) = mode_bindings
@@ -607,12 +630,27 @@ impl KeybindingManager {
         }
     }
 
-    fn handle_minibuffer_mode(&self, current_mode: &Mode, key_binding: Keybinding) -> Option<Action> {
+    fn handle_minibuffer_mode(
+        &self,
+        current_mode: &Mode,
+        key_binding: Keybinding,
+    ) -> Option<Action> {
         match key_binding {
-            Keybinding { key: KeyCode::Char(c), modifiers: KeyModifiers::NONE } => Some(Action::InsertChar(c)),
-            Keybinding { key: KeyCode::Char(c), modifiers: KeyModifiers::SHIFT } => Some(Action::InsertChar(c)),
-            Keybinding { key: KeyCode::Backspace, .. } => Some(Action::DeleteChar),
-            Keybinding { key: KeyCode::Esc, .. } => Some(Action::Escape),
+            Keybinding {
+                key: KeyCode::Char(c),
+                modifiers: KeyModifiers::NONE,
+            } => Some(Action::InsertChar(c)),
+            Keybinding {
+                key: KeyCode::Char(c),
+                modifiers: KeyModifiers::SHIFT,
+            } => Some(Action::InsertChar(c)),
+            Keybinding {
+                key: KeyCode::Backspace,
+                ..
+            } => Some(Action::DeleteChar),
+            Keybinding {
+                key: KeyCode::Esc, ..
+            } => Some(Action::Escape),
             _ => {
                 log::info!("Keybinding: {:#?}", key_binding);
                 if let Some(mode_bindings) = self.mode_bindings.get(current_mode) {

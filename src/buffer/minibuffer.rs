@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
 use std::env;
 use std::fs;
+use std::path::{Path, PathBuf};
 
 use crate::buffer::{Cursor, Error};
 use crate::keybinding::Action;
@@ -67,7 +67,7 @@ impl Minibuffer {
                             self.cursor.x = self.matched_input.len();
                             self.fill()?;
 
-                            return Ok(())
+                            return Ok(());
                         } else if entry.contains(&self.input) {
                             matches.push(entry);
                         }
@@ -91,7 +91,7 @@ impl Minibuffer {
                 matches.clear();
                 matches.append(&mut dirs);
                 matches.append(&mut files);
-            },
+            }
             MinibufferKind::Buffer(buffer_list) => {
                 self.prefix = "Find Buffer:".to_string();
 
@@ -102,8 +102,8 @@ impl Minibuffer {
                 }
 
                 matches.sort();
-            },
-            _ => {},
+            }
+            _ => {}
         }
 
         self.content = matches;
@@ -124,7 +124,7 @@ impl Minibuffer {
                 if path.is_file() {
                     return Ok(Some(Action::OpenFile(path.clone())));
                 }
-            },
+            }
             MinibufferKind::Buffer(buffer_list) => {
                 let item: &String = if self.content.len() > 1 {
                     if let Some(item) = &self.content.get(self.cursor.y) {
@@ -142,9 +142,9 @@ impl Minibuffer {
                     }
                 }
 
-                return Err(Error::NoMatchError)
-            },
-            _ => {},
+                return Err(Error::NoMatchError);
+            }
+            _ => {}
         }
 
         Ok(None)
