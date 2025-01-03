@@ -32,7 +32,7 @@ fn main() -> Result<()> {
         match event::read() {
             Ok(event) => match event {
                 Event::Key(key_event) => {
-                    let buffer_mode = &editor.get_active_buffer()?.mode;
+                    let buffer_mode = &editor.buffer_manager.get_active_buffer()?.mode;
                     let input_result = keybinding_manager.handle_input(buffer_mode, key_event);
 
                     if let Some(action) = input_result {
@@ -40,6 +40,7 @@ fn main() -> Result<()> {
                             Ok(_) => {}
                             Err(_) => {
                                 editor
+                                    .buffer_manager
                                     .get_active_buffer_mut()?
                                     .switch_mode(ModeParams::Normal);
                             }
