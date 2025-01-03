@@ -357,29 +357,29 @@ impl KeybindingManager {
         self.add_binding(
             Mode::Command,
             None,
-            vec![(KeyCode::Left, KeyModifiers::NONE)],
+            vec![(KeyCode::Char('n'), KeyModifiers::CONTROL)],
             Action::MoveCursor(-1, 0),
         );
 
         self.add_binding(
             Mode::Command,
             None,
-            vec![(KeyCode::Right, KeyModifiers::NONE)],
-            Action::MoveCursor(1, 0),
+            vec![(KeyCode::Char('e'), KeyModifiers::CONTROL)],
+            Action::MoveCursor(0, 1),
         );
 
         self.add_binding(
             Mode::Command,
             None,
-            vec![(KeyCode::Up, KeyModifiers::NONE)],
+            vec![(KeyCode::Char('i'), KeyModifiers::CONTROL)],
             Action::MoveCursor(0, -1),
         );
 
         self.add_binding(
             Mode::Command,
             None,
-            vec![(KeyCode::Down, KeyModifiers::NONE)],
-            Action::MoveCursor(0, 1),
+            vec![(KeyCode::Char('o'), KeyModifiers::CONTROL)],
+            Action::MoveCursor(1, 0),
         );
 
         // MINIBUFFER MODE
@@ -400,29 +400,29 @@ impl KeybindingManager {
         self.add_binding(
             Mode::Minibuffer,
             None,
-            vec![(KeyCode::Left, KeyModifiers::NONE)],
+            vec![(KeyCode::Char('n'), KeyModifiers::CONTROL)],
             Action::MoveCursor(-1, 0),
         );
 
         self.add_binding(
             Mode::Minibuffer,
             None,
-            vec![(KeyCode::Right, KeyModifiers::NONE)],
-            Action::MoveCursor(1, 0),
+            vec![(KeyCode::Char('e'), KeyModifiers::CONTROL)],
+            Action::MoveCursor(0, 1),
         );
 
         self.add_binding(
             Mode::Minibuffer,
             None,
-            vec![(KeyCode::Up, KeyModifiers::NONE)],
+            vec![(KeyCode::Char('i'), KeyModifiers::CONTROL)],
             Action::MoveCursor(0, -1),
         );
 
         self.add_binding(
             Mode::Minibuffer,
             None,
-            vec![(KeyCode::Down, KeyModifiers::NONE)],
-            Action::MoveCursor(0, 1),
+            vec![(KeyCode::Char('o'), KeyModifiers::CONTROL)],
+            Action::MoveCursor(1, 0),
         );
 
         self.add_binding(
@@ -538,11 +538,12 @@ impl KeybindingManager {
     }
 
     fn handle_insert_mode(&self, current_mode: &Mode, key_binding: Keybinding) -> Option<Action> {
-        match key_binding.key {
-            KeyCode::Char(c) => Some(Action::InsertChar(c)),
-            KeyCode::Tab => Some(Action::InsertTab),
-            KeyCode::Backspace => Some(Action::DeleteChar),
-            KeyCode::Enter => Some(Action::NewLine(NewLineDirection::Under)),
+        match key_binding {
+            Keybinding { key: KeyCode::Char(c), modifiers: KeyModifiers::NONE } => Some(Action::InsertChar(c)),
+            Keybinding { key: KeyCode::Char(c), modifiers: KeyModifiers::SHIFT } => Some(Action::InsertChar(c)),
+            Keybinding { key: KeyCode::Tab, modifiers: KeyModifiers::SHIFT } => Some(Action::InsertTab),
+            Keybinding { key: KeyCode::Backspace, .. } => Some(Action::DeleteChar),
+            Keybinding { key: KeyCode::Enter, .. } => Some(Action::NewLine(NewLineDirection::Under)),
             _ => {
                 if let Some(mode_bindings) = self.mode_bindings.get(current_mode) {
                     if let Some(action) = mode_bindings
@@ -582,9 +583,10 @@ impl KeybindingManager {
     }
 
     fn handle_command_mode(&self, current_mode: &Mode, key_binding: Keybinding) -> Option<Action> {
-        match key_binding.key {
-            KeyCode::Char(c) => Some(Action::InsertChar(c)),
-            KeyCode::Backspace => Some(Action::DeleteChar),
+        match key_binding {
+            Keybinding { key: KeyCode::Char(c), modifiers: KeyModifiers::NONE } => Some(Action::InsertChar(c)),
+            Keybinding { key: KeyCode::Char(c), modifiers: KeyModifiers::SHIFT } => Some(Action::InsertChar(c)),
+            Keybinding { key: KeyCode::Backspace, .. } => Some(Action::DeleteChar),
             _ => {
                 if let Some(mode_bindings) = self.mode_bindings.get(current_mode) {
                     if let Some(action) = mode_bindings
@@ -606,11 +608,13 @@ impl KeybindingManager {
     }
 
     fn handle_minibuffer_mode(&self, current_mode: &Mode, key_binding: Keybinding) -> Option<Action> {
-        match key_binding.key {
-            KeyCode::Char(c) => Some(Action::InsertChar(c)),
-            KeyCode::Backspace => Some(Action::DeleteChar),
-            KeyCode::Esc => Some(Action::Escape),
+        match key_binding {
+            Keybinding { key: KeyCode::Char(c), modifiers: KeyModifiers::NONE } => Some(Action::InsertChar(c)),
+            Keybinding { key: KeyCode::Char(c), modifiers: KeyModifiers::SHIFT } => Some(Action::InsertChar(c)),
+            Keybinding { key: KeyCode::Backspace, .. } => Some(Action::DeleteChar),
+            Keybinding { key: KeyCode::Esc, .. } => Some(Action::Escape),
             _ => {
+                log::info!("Keybinding: {:#?}", key_binding);
                 if let Some(mode_bindings) = self.mode_bindings.get(current_mode) {
                     if let Some(action) = mode_bindings
                         .get(&Some(self.current_buffer_kind.clone()))
