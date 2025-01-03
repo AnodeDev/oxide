@@ -47,7 +47,7 @@ Oxide is currently in very early beta.
     - Buffer switching
 
 - In Progress:
-    - Rewrite rendering engine
+    - Improve code modularity and clarity
     - Config language ([patina](https://github.com/AnodeDev/patina))
     - Plugin system
 
