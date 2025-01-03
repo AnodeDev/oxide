@@ -43,14 +43,14 @@ Oxide is currently in very early beta.
     - Basic vi-like modal editing
     - Basic file editing (loading file, saving, etc.)
     - Keybindings
-
-- In Progress:
     - Emacs-like minibuffer
     - Buffer switching
+
+- In Progress:
     - Config language ([patina](https://github.com/AnodeDev/patina))
+    - Plugin system
 
 - Upcomming:
-    - Plugin system
     - Buffer compression system
 
 ## Contributing
