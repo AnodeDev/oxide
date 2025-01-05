@@ -32,6 +32,8 @@ impl Navigation for Buffer {
                     let current_line_len = self.content[self.cursor.y].len();
                     self.cursor.x = self.cursor.desired_x.min(current_line_len);
                 }
+
+                self.viewport.adjust(self.cursor.y, self.content.len());
             }
             Mode::Command => {
                 self.command_line.move_cursor(x, y);

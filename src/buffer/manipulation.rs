@@ -72,6 +72,8 @@ impl Manipulation for Buffer {
             }
             _ => {}
         }
+        
+        self.viewport.adjust(self.cursor.y, self.content.len());
     }
 
     // Implements the remove character logic for all modes.
