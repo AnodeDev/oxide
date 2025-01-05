@@ -652,7 +652,6 @@ impl KeybindingManager {
                 key: KeyCode::Esc, ..
             } => Some(Action::Escape),
             _ => {
-                log::info!("Keybinding: {:#?}", key_binding);
                 if let Some(mode_bindings) = self.mode_bindings.get(current_mode) {
                     if let Some(action) = mode_bindings
                         .get(&Some(self.current_buffer_kind.clone()))

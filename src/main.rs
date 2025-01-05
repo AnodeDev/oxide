@@ -15,7 +15,8 @@ type Result<T> = std::result::Result<T, oxide::OxideError>;
 // ╰──────────────────────────────────────╯
 
 fn main() -> Result<()> {
-    setup_logger()?;
+    // Enable if you want logging
+    // setup_logger()?;
 
     // Initializes core components
     let terminal = ratatui::init();
