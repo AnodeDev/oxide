@@ -1,10 +1,10 @@
 use ratatui::prelude::*;
 use ratatui::Terminal;
+use tokio::runtime::Runtime;
 
 use std::io::Stdout;
 
-use crate::buffer::{Buffer, Manipulation, Minibuffer, MinibufferKind, Mode, Navigation};
-use crate::keybinding::{Action, CommandParser, KeybindingManager, ModeParams};
+use crate::buffer::{Buffer, Minibuffer, Mode};
 use crate::renderer::Renderer;
 use crate::OxideError;
 
@@ -63,21 +63,24 @@ pub struct Editor {
     pub renderer: Renderer,
     pub is_running: bool,
     pub minibuffer: Minibuffer,
+    pub runtime: Runtime,
 }
 
 impl Editor {
-    pub fn new(terminal: Terminal<CrosstermBackend<Stdout>>) -> Self {
+    pub fn new(terminal: Terminal<CrosstermBackend<Stdout>>) -> Result<Self> {
         let renderer = Renderer::new(terminal);
         let height = renderer.get_terminal_size().height as usize;
         let buffer_manager = BufferManager::new(height);
         let minibuffer = Minibuffer::default();
+        let runtime = Runtime::new()?;
 
-        Editor {
+        Ok(Editor {
             buffer_manager,
             renderer,
             is_running: true,
             minibuffer,
-        }
+            runtime,
+        })
     }
 
     // Calls the rendering function to not borrow past the editor's lifetime
@@ -91,117 +94,6 @@ impl Editor {
         };
 
         self.renderer.render(buffer, minibuffer)?;
-
-        Ok(())
-    }
-
-    // Parses the keybinding and executes the corresponding action
-    pub fn parse_action(
-        &mut self,
-        action: Action,
-        keybinding_manager: &KeybindingManager,
-        tokio_runtime: &tokio::runtime::Runtime,
-    ) -> Result<()> {
-        if self.buffer_manager.get_active_buffer()?.mode != Mode::Minibuffer {
-            match action {
-                Action::SwitchMode(mode) => {
-                    self.buffer_manager.get_active_buffer_mut()?.switch_mode(mode);
-                }
-                Action::InsertChar(c) => self.buffer_manager.get_active_buffer_mut()?.add_char(c)?,
-                Action::InsertTab => self.buffer_manager.get_active_buffer_mut()?.add_tab()?,
-                Action::NewLine(direction) => self.buffer_manager.get_active_buffer_mut()?.new_line(direction),
-                Action::DeleteLine => self.buffer_manager.get_active_buffer_mut()?.delete_line(),
-                Action::MoveCursor(x, y) => self.buffer_manager.get_active_buffer_mut()?.move_cursor(x, y),
-                Action::TopOfBuffer => self.buffer_manager.get_active_buffer_mut()?.move_cursor_to_top(),
-                Action::EndOfBuffer => self.buffer_manager.get_active_buffer_mut()?.move_cursor_to_bot(),
-                Action::Quit => self.is_running = false,
-                Action::DeleteChar => self.buffer_manager.get_active_buffer_mut()?.remove_char()?,
-                Action::WriteBuffer => {
-                    tokio_runtime.block_on(self.buffer_manager.get_active_buffer_mut()?.write_buffer())?
-                }
-                Action::ExecuteCommand => {
-                    let input: &str = self.buffer_manager.get_active_buffer_mut()?.get_command();
-                    let commands = CommandParser::parse(input);
-
-                    for command in commands {
-                        self.parse_action(command, keybinding_manager, tokio_runtime)?;
-                    }
-
-                    self.buffer_manager.get_active_buffer_mut()?
-                        .switch_mode(ModeParams::Normal);
-                }
-                Action::OpenFile(path) => {
-                    tokio_runtime.block_on(self.buffer_manager.get_active_buffer_mut()?.load_file(&path))?;
-                }
-                Action::Minibuffer(kind) => {
-                    self.buffer_manager.get_active_buffer_mut()?
-                        .switch_mode(ModeParams::Minibuffer);
-
-                    match kind {
-                        MinibufferKind::Buffer(_) => {
-                            let mut buffers: Vec<String> = Vec::new();
-
-                            for buffer in &self.buffer_manager.buffers {
-                                buffers.push(buffer.title.clone());
-                            }
-
-                            self.minibuffer.kind = MinibufferKind::Buffer(buffers);
-                        }
-                        _ => self.minibuffer.kind = kind,
-                    }
-
-                    self.minibuffer.fill()?;
-                }
-                _ => {}
-            }
-        } else {
-            match action {
-                Action::Escape => {
-                    self.minibuffer = Minibuffer::default();
-                    self.buffer_manager.get_active_buffer_mut()?
-                        .switch_mode(ModeParams::Normal);
-                }
-                Action::InsertChar(c) => self.minibuffer.add_char(c)?,
-                Action::MoveCursor(x, y) => self.minibuffer.move_cursor(x, y),
-                Action::DeleteChar => self.minibuffer.remove_char()?,
-                Action::Append => self.minibuffer.append(),
-                Action::ExecuteCommand => match self.minibuffer.execute()? {
-                    Some(action) => {
-                        match action {
-                            Action::OpenFile(path) => {
-                                if self.buffer_manager.get_active_buffer()?.path.is_some() {
-                                    tokio_runtime
-                                        .block_on(self.buffer_manager.get_active_buffer_mut()?.load_file(&path))?;
-                                } else {
-                                    let height = self.renderer.get_terminal_size().height as usize;
-                                    let buffer =
-                                        tokio_runtime.block_on(Buffer::from_file(path, height))?;
-
-                                    self.buffer_manager.add_buffer(buffer);
-                                    self.buffer_manager.active_buffer = self.buffer_manager.buffers.len() - 1;
-                                }
-                            }
-                            Action::OpenBuffer(num) => {
-                                if num < self.buffer_manager.buffers.len() {
-                                    self.buffer_manager.active_buffer = num;
-                                } else {
-                                    return Err(OxideError::IndexError);
-                                }
-                            }
-                            _ => {}
-                        }
-
-                        self.minibuffer = Minibuffer::default();
-                        self.buffer_manager.get_active_buffer_mut()?
-                            .switch_mode(ModeParams::Normal);
-                    }
-                    None => {}
-                },
-                _ => {}
-            }
-
-            self.minibuffer.fill()?;
-        }
 
         Ok(())
     }

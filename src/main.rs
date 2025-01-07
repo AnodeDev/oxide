@@ -1,7 +1,7 @@
 use ratatui::crossterm::event::{self, Event};
 
 use oxide::editor::Editor;
-use oxide::keybinding::{KeybindingManager, ModeParams};
+use oxide::keybinding::KeybindingManager;
 use oxide::utils::logging::setup_logger;
 
 // ╭──────────────────────────────────────╮
@@ -16,12 +16,11 @@ type Result<T> = std::result::Result<T, oxide::OxideError>;
 
 fn main() -> Result<()> {
     // Enable if you want logging
-    // setup_logger()?;
+    setup_logger()?;
 
     // Initializes core components
     let terminal = ratatui::init();
-    let mut editor = Editor::new(terminal);
-    let tokio_runtime = tokio::runtime::Runtime::new()?;
+    let mut editor = Editor::new(terminal)?;
     let mut keybinding_manager = KeybindingManager::new();
 
     // Main loop
@@ -34,23 +33,14 @@ fn main() -> Result<()> {
             Ok(event) => match event {
                 Event::Key(key_event) => {
                     let buffer_mode = &editor.buffer_manager.get_active_buffer()?.mode;
-                    let input_result = keybinding_manager.handle_input(buffer_mode, key_event);
 
-                    if let Some(action) = input_result {
-                        match editor.parse_action(action, &keybinding_manager, &tokio_runtime) {
-                            Ok(_) => {}
-                            Err(_) => {
-                                editor
-                                    .buffer_manager
-                                    .get_active_buffer_mut()?
-                                    .switch_mode(ModeParams::Normal);
-                            }
-                        }
+                    if let Some(action) = keybinding_manager.handle_input(buffer_mode, key_event) {
+                        action.execute(&mut editor)?;
                     }
                 }
                 _ => {}
             },
-            Err(_) => {}
+            Err(e) => eprintln!("{}", e),
         }
     }
 

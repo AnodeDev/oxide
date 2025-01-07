@@ -5,7 +5,7 @@ use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 use crate::buffer::{Error, Viewport};
-use crate::keybinding::{InsertDirection, ModeParams};
+use crate::keybinding::actions::{InsertDirection, ModeParams};
 
 // ╭──────────────────────────────────────╮
 // │ Buffer Types                         │
@@ -217,7 +217,7 @@ impl Buffer {
     // the editor in case something happens.
     pub async fn write_buffer(&mut self) -> Result<()> {
         if !self.state.mutable {
-            return Err(Error::FileNotFoundError);
+            return Err(Error::ImmutableBufferError { title: self.title.clone() });
         }
 
         if let Some(path) = &self.path {
@@ -248,9 +248,9 @@ impl Buffer {
                 self.visual_start = Some(self.cursor);
                 self.mode = Mode::Visual;
             }
-            ModeParams::Command { prefix, input } => {
+            ModeParams::Command { prefix } => {
                 self.command_line.prefix = prefix;
-                self.command_line.input = format!("{}", input);
+                self.command_line.input = String::new();
                 self.command_line.cursor.x =
                     self.command_line.prefix.len() + self.command_line.input.len();
 
@@ -313,7 +313,7 @@ impl Buffer {
 
             Ok(())
         } else {
-            Err(Error::FileNotFoundError)
+            Err(Error::FileNotFoundError { path: path.clone() })
         }
     }
 }

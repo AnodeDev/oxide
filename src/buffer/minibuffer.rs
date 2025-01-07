@@ -1,9 +1,10 @@
+use std::boxed::Box;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::buffer::{Cursor, Error};
-use crate::keybinding::Action;
+use crate::keybinding::actions::{self, Action};
 
 // ╭──────────────────────────────────────╮
 // │ Minibuffer Types                     │
@@ -41,7 +42,8 @@ impl Minibuffer {
         match &mut self.kind {
             MinibufferKind::File(ref mut path) => {
                 if path.display().to_string().is_empty() {
-                    *path = env::current_dir()?;
+                    *path = env::current_dir()
+                        .map_err(|_| Error::InvalidPathError { path: path.clone() })?;
                     matches = runtime.block_on(read_dir(&path))?;
 
                     for dir in path.into_iter() {
@@ -111,18 +113,32 @@ impl Minibuffer {
         Ok(())
     }
 
-    pub fn append(&mut self) {
+    pub fn append(&mut self) -> Result<()> {
         if let Some(item) = self.content.get(self.cursor.y) {
+            if let MinibufferKind::File(path) = &self.kind {
+                let mut test = path.clone();
+                test.push(item);
+
+                if !test.is_file() && !test.is_dir() {
+                    return Err(Error::InvalidPathError { path: test.to_path_buf() })
+                }
+            }
+
+            self.cursor.y = 0;
             self.cursor.x += item.len() - self.input.len();
             self.input = item.to_string();
         }
+
+        Ok(())
     }
 
-    pub fn execute(&mut self) -> Result<Option<Action>> {
+    pub fn execute(&mut self) -> Result<Option<Box<dyn Action>>> {
         match &self.kind {
             MinibufferKind::File(path) => {
                 if path.is_file() {
-                    return Ok(Some(Action::OpenFile(path.clone())));
+                    return Ok(Some(Box::new(actions::OpenFileAction::new(path.clone()))));
+                } else if !path.is_dir() {
+                return Err(Error::InvalidPathError { path: path.clone() })
                 }
             }
             MinibufferKind::Buffer(buffer_list) => {
@@ -138,11 +154,11 @@ impl Minibuffer {
 
                 for (num, entry) in buffer_list.iter().enumerate() {
                     if entry.contains(item) {
-                        return Ok(Some(Action::OpenBuffer(num)));
+                        return Ok(Some(Box::new(actions::OpenBufferAction::new(num))));
                     }
                 }
 
-                return Err(Error::NoMatchError);
+                return Err(Error::NoMatchError { input: item.to_string() });
             }
             _ => {}
         }
@@ -153,8 +169,10 @@ impl Minibuffer {
 
 async fn read_dir(path: &PathBuf) -> Result<Vec<String>> {
     let mut entries: Vec<String> = Vec::new();
+    let content = fs::read_dir(path)
+        .map_err(|_| Error::InvalidPathError { path: path.clone() })?;
 
-    for entry in fs::read_dir(path)? {
+    for entry in content {
         let entry = entry?;
         let path = entry.path();
         if let Some(name) = path.file_name() {

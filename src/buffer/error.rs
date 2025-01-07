@@ -1,4 +1,5 @@
 use std::fmt;
+use std::path::PathBuf;
 
 // ╭──────────────────────────────────────╮
 // │ Error Types                          │
@@ -6,15 +7,42 @@ use std::fmt;
 
 #[derive(Debug)]
 pub enum Error {
-    WriteToSourceError,
-    FileNotFoundError,
-    WrongModeError,
-    WrongKindError,
-    InvalidSourceError,
-    VisualModeInitError,
-    ConvertToPathError,
-    ReadDirectoryError,
-    NoMatchError,
+    WriteToSourceError {
+        source: String,
+        reason: String,
+    },
+    FileNotFoundError {
+        path: PathBuf,
+    },
+    WrongModeError {
+        current_mode: String,
+        valid_modes: Vec<String>,
+    },
+    WrongKindError {
+        expected_kind: String,
+        actual_kind: String,
+    },
+    InvalidSourceError {
+        details: String,
+    },
+    VisualModeInitError {
+        details: String,
+    },
+    ConvertToPathError {
+        input: String,
+    },
+    ReadDirectoryError {
+        directory: PathBuf,
+    },
+    NoMatchError {
+        input: String,
+    },
+    InvalidPathError {
+        path: PathBuf,
+    },
+    ImmutableBufferError {
+        title: String,
+    },
     IoError(std::io::Error),
 }
 
@@ -29,30 +57,44 @@ impl From<std::io::Error> for Error {
 impl std::error::Error for Error {}
 
 // Defines the error messages for the errors.
-// TODO: Add custom error messages.
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::WriteToSourceError => write!(f, "WriteToSourceError: Failed to write to source"),
-            Error::FileNotFoundError => write!(f, "FileNotFoundError: File was not found"),
-            Error::WrongModeError => write!(f, "WrongModeError: Wrong mode to execute function"),
-            Error::WrongKindError => {
-                write!(f, "WrongKindError: Wrong buffer kind to execute function")
+            Error::WriteToSourceError { source, reason } => {
+                write!(f, "WriteToSourceError: Failed to write to source '{}' due to '{}'", source, reason)
             }
-            Error::InvalidSourceError => write!(
-                f,
-                "InvalidSourceError: You're not able to perform this action from this buffer"
-            ),
-            Error::VisualModeInitError => write!(
-                f,
-                "VisualModeInitError: Visual mode was not initialized correctly"
-            ),
-            Error::ConvertToPathError => write!(f, "ConvertToPathError: Failed to convert to path"),
-            Error::ReadDirectoryError => write!(f, "ReadDirectoryError: Failed to read directory"),
-            Error::NoMatchError => {
-                write!(f, "NoMatchError: Input did not match any of the entries")
+            Error::FileNotFoundError { path } => {
+                write!(f, "FileNotFoundError: File not found at path '{}'", path.display())
             }
-            Error::IoError(e) => write!(f, "{}", e),
+            Error::WrongModeError { current_mode, valid_modes } => {
+                write!(f, "WrongModeError: Current mode is invalid for this action. Current mode: '{}'. Valid mode(s): '{}'", current_mode, valid_modes.join(", "))
+            }
+            Error::WrongKindError { expected_kind, actual_kind } => {
+                write!(f, "WrongKindError: Expected kind '{}', but found '{}'", expected_kind, actual_kind)
+            }
+            Error::InvalidSourceError { details } => {
+                write!(f, "InvalidSourceError: {}", details)
+            }
+            Error::VisualModeInitError { details } => {
+                write!(f, "VisualModeInitError: {}", details)
+            }
+            Error::ConvertToPathError { input } => {
+                write!(f, "ConvertToPathError: Failed to convert input '{}' to a valid path", input)
+            }
+            Error::ReadDirectoryError { directory } => {
+                write!(f, "ReadDirectoryError: Failed to read directory '{}'", directory.display())
+            }
+            Error::NoMatchError { input } => {
+                write!(f, "NoMatchError: No match found for input '{}'", input)
+            }
+            Error::InvalidPathError { path } => {
+                write!(f, "InvalidPathError: Path '{}' is invalid", path.display())
+            }
+            Error::ImmutableBufferError { title } => {
+                write!(f, "ImmutableBufferError: Current buffer '{}' is immutable and cannot be manipulated", title)
+            }
+            Error::IoError(e) => write!(f, "IoError: {}", e),
         }
     }
 }
+

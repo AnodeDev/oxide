@@ -1,5 +1,5 @@
 use crate::buffer::{Buffer, CommandLine, Error, Minibuffer, MinibufferKind, Mode};
-use crate::keybinding::{ModeParams, NewLineDirection};
+use crate::keybinding::actions::{ModeParams, NewLineDirection};
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -24,7 +24,13 @@ impl Manipulation for Buffer {
             Mode::Command => {
                 self.command_line.add_char(character)?;
             }
-            _ => return Err(Error::WrongModeError),
+            _ => return Err(Error::WrongModeError {
+                current_mode: self.mode.to_string(),
+                valid_modes: vec![
+                    Mode::Insert.to_string(),
+                    Mode::Command.to_string(),
+                ],
+            }),
         };
 
         Ok(())
@@ -36,6 +42,8 @@ impl Manipulation for Buffer {
         while (self.cursor.x + spaces) % 4 != 0 {
             spaces -= 1;
         }
+
+        log::info!("{}", spaces);
 
         for _ in 0..spaces {
             self.add_char(' ')?;
@@ -72,7 +80,7 @@ impl Manipulation for Buffer {
             }
             _ => {}
         }
-        
+
         self.viewport.adjust(self.cursor.y, self.content.len());
     }
 
@@ -175,7 +183,15 @@ impl Manipulation for Buffer {
                 }
             }
             Mode::Command => self.command_line.remove_char()?,
-            Mode::Minibuffer => return Err(Error::WrongModeError),
+            Mode::Minibuffer => return Err(Error::WrongModeError {
+                current_mode: self.mode.to_string(),
+                valid_modes: vec![
+                    Mode::Normal.to_string(),
+                    Mode::Insert.to_string(),
+                    Mode::Visual.to_string(),
+                    Mode::Command.to_string(),
+                ]
+            }),
         }
 
         Ok(())
@@ -251,6 +267,7 @@ impl Manipulation for Minibuffer {
                 match &mut self.kind {
                     MinibufferKind::File(path) => {
                         path.pop();
+                        self.cursor.y = 0;
                     }
                     _ => {}
                 }
