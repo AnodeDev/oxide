@@ -1,3 +1,4 @@
+use ratatui::crossterm::event::{self, Event};
 use ratatui::prelude::*;
 use ratatui::Terminal;
 use tokio::runtime::Runtime;
@@ -6,6 +7,7 @@ use std::io::Stdout;
 
 use crate::buffer::{Buffer, Minibuffer, Mode};
 use crate::renderer::Renderer;
+use crate::keybinding::KeybindingManager;
 use crate::OxideError;
 
 // ╭──────────────────────────────────────╮
@@ -13,10 +15,6 @@ use crate::OxideError;
 // ╰──────────────────────────────────────╯
 
 type Result<T> = std::result::Result<T, crate::OxideError>;
-
-// ╭──────────────────────────────────────╮
-// │ Editor Enums                         │
-// ╰──────────────────────────────────────╯
 
 // ╭──────────────────────────────────────╮
 // │ Editor Struct                        │
@@ -64,6 +62,7 @@ pub struct Editor {
     pub is_running: bool,
     pub minibuffer: Minibuffer,
     pub runtime: Runtime,
+    pub keybinding_manager: KeybindingManager,
 }
 
 impl Editor {
@@ -73,6 +72,7 @@ impl Editor {
         let buffer_manager = BufferManager::new(height);
         let minibuffer = Minibuffer::default();
         let runtime = Runtime::new()?;
+        let keybinding_manager = KeybindingManager::new();
 
         Ok(Editor {
             buffer_manager,
@@ -80,7 +80,32 @@ impl Editor {
             is_running: true,
             minibuffer,
             runtime,
+            keybinding_manager,
         })
+    }
+
+    pub fn main_loop(&mut self) -> Result<()> {
+        while self.is_running {
+            // Renders the buffer
+            self.render()?;
+
+            // Checks the user keypresses
+            match event::read() {
+                Ok(event) => match event {
+                    Event::Key(key_event) => {
+                        let buffer_mode = &self.buffer_manager.get_active_buffer()?.mode;
+
+                        if let Some(action) = self.keybinding_manager.handle_input(buffer_mode, key_event) {
+                            action.execute(self)?;
+                        }
+                    }
+                    _ => {}
+                },
+                Err(e) => eprintln!("{}", e),
+            }
+        }
+
+        Ok(())
     }
 
     // Calls the rendering function to not borrow past the editor's lifetime
