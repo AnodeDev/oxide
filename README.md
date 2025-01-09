@@ -48,7 +48,7 @@ Oxide is currently in very early beta.
 
 - In Progress:
     - Improve code modularity and clarity
-    - Config language ([patina](https://github.com/AnodeDev/patina))
+    - Config language ([lua](https://lua.org))
     - Plugin system
 
 - Upcomming:
