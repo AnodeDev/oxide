@@ -24,13 +24,12 @@ impl Manipulation for Buffer {
             Mode::Command => {
                 self.command_line.add_char(character)?;
             }
-            _ => return Err(Error::WrongModeError {
-                current_mode: self.mode.to_string(),
-                valid_modes: vec![
-                    Mode::Insert.to_string(),
-                    Mode::Command.to_string(),
-                ],
-            }),
+            _ => {
+                return Err(Error::WrongModeError {
+                    current_mode: self.mode.to_string(),
+                    valid_modes: vec![Mode::Insert.to_string(), Mode::Command.to_string()],
+                })
+            }
         };
 
         Ok(())
@@ -183,15 +182,17 @@ impl Manipulation for Buffer {
                 }
             }
             Mode::Command => self.command_line.remove_char()?,
-            Mode::Minibuffer => return Err(Error::WrongModeError {
-                current_mode: self.mode.to_string(),
-                valid_modes: vec![
-                    Mode::Normal.to_string(),
-                    Mode::Insert.to_string(),
-                    Mode::Visual.to_string(),
-                    Mode::Command.to_string(),
-                ]
-            }),
+            Mode::Minibuffer => {
+                return Err(Error::WrongModeError {
+                    current_mode: self.mode.to_string(),
+                    valid_modes: vec![
+                        Mode::Normal.to_string(),
+                        Mode::Insert.to_string(),
+                        Mode::Visual.to_string(),
+                        Mode::Command.to_string(),
+                    ],
+                })
+            }
         }
 
         Ok(())

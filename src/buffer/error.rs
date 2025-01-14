@@ -61,16 +61,34 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::WriteToSourceError { source, reason } => {
-                write!(f, "WriteToSourceError: Failed to write to source '{}' due to '{}'", source, reason)
+                write!(
+                    f,
+                    "WriteToSourceError: Failed to write to source '{}' due to '{}'",
+                    source, reason
+                )
             }
             Error::FileNotFoundError { path } => {
-                write!(f, "FileNotFoundError: File not found at path '{}'", path.display())
+                write!(
+                    f,
+                    "FileNotFoundError: File not found at path '{}'",
+                    path.display()
+                )
             }
-            Error::WrongModeError { current_mode, valid_modes } => {
+            Error::WrongModeError {
+                current_mode,
+                valid_modes,
+            } => {
                 write!(f, "WrongModeError: Current mode is invalid for this action. Current mode: '{}'. Valid mode(s): '{}'", current_mode, valid_modes.join(", "))
             }
-            Error::WrongKindError { expected_kind, actual_kind } => {
-                write!(f, "WrongKindError: Expected kind '{}', but found '{}'", expected_kind, actual_kind)
+            Error::WrongKindError {
+                expected_kind,
+                actual_kind,
+            } => {
+                write!(
+                    f,
+                    "WrongKindError: Expected kind '{}', but found '{}'",
+                    expected_kind, actual_kind
+                )
             }
             Error::InvalidSourceError { details } => {
                 write!(f, "InvalidSourceError: {}", details)
@@ -79,10 +97,18 @@ impl fmt::Display for Error {
                 write!(f, "VisualModeInitError: {}", details)
             }
             Error::ConvertToPathError { input } => {
-                write!(f, "ConvertToPathError: Failed to convert input '{}' to a valid path", input)
+                write!(
+                    f,
+                    "ConvertToPathError: Failed to convert input '{}' to a valid path",
+                    input
+                )
             }
             Error::ReadDirectoryError { directory } => {
-                write!(f, "ReadDirectoryError: Failed to read directory '{}'", directory.display())
+                write!(
+                    f,
+                    "ReadDirectoryError: Failed to read directory '{}'",
+                    directory.display()
+                )
             }
             Error::NoMatchError { input } => {
                 write!(f, "NoMatchError: No match found for input '{}'", input)
@@ -97,4 +123,3 @@ impl fmt::Display for Error {
         }
     }
 }
-

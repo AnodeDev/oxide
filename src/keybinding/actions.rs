@@ -1,8 +1,6 @@
 use std::path::PathBuf;
 
-use crate::buffer::{
-    Buffer, Manipulation, Minibuffer, MinibufferKind, Navigation,
-};
+use crate::buffer::{Buffer, Manipulation, Minibuffer, MinibufferKind, Navigation};
 use crate::editor::Editor;
 use crate::keybinding::CommandParser;
 use crate::OxideError;
@@ -379,7 +377,6 @@ impl AddMbCharAction {
 impl Action for AddMbCharAction {
     fn execute(&self, editor: &mut Editor) -> Result<()> {
         editor.minibuffer.add_char(self.character)?;
-
 
         editor.minibuffer.fill()?;
         Ok(())

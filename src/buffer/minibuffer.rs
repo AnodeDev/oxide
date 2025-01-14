@@ -60,6 +60,7 @@ impl Minibuffer {
                             path.push(&entry);
 
                             if path.is_file() {
+                                matches.clear();
                                 matches.push(entry);
                                 break;
                             }
@@ -120,7 +121,9 @@ impl Minibuffer {
                 test.push(item);
 
                 if !test.is_file() && !test.is_dir() {
-                    return Err(Error::InvalidPathError { path: test.to_path_buf() })
+                    return Err(Error::InvalidPathError {
+                        path: test.to_path_buf(),
+                    });
                 }
             }
 
@@ -138,7 +141,7 @@ impl Minibuffer {
                 if path.is_file() {
                     return Ok(Some(Box::new(actions::OpenFileAction::new(path.clone()))));
                 } else if !path.is_dir() {
-                return Err(Error::InvalidPathError { path: path.clone() })
+                    return Err(Error::InvalidPathError { path: path.clone() });
                 }
             }
             MinibufferKind::Buffer(buffer_list) => {
@@ -158,7 +161,9 @@ impl Minibuffer {
                     }
                 }
 
-                return Err(Error::NoMatchError { input: item.to_string() });
+                return Err(Error::NoMatchError {
+                    input: item.to_string(),
+                });
             }
             _ => {}
         }
@@ -169,8 +174,7 @@ impl Minibuffer {
 
 async fn read_dir(path: &PathBuf) -> Result<Vec<String>> {
     let mut entries: Vec<String> = Vec::new();
-    let content = fs::read_dir(path)
-        .map_err(|_| Error::InvalidPathError { path: path.clone() })?;
+    let content = fs::read_dir(path).map_err(|_| Error::InvalidPathError { path: path.clone() })?;
 
     for entry in content {
         let entry = entry?;

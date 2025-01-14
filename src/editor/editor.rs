@@ -6,8 +6,8 @@ use tokio::runtime::Runtime;
 use std::io::Stdout;
 
 use crate::buffer::{Buffer, Minibuffer, Mode};
-use crate::renderer::Renderer;
 use crate::keybinding::KeybindingManager;
+use crate::renderer::Renderer;
 use crate::OxideError;
 
 // ╭──────────────────────────────────────╮
@@ -95,7 +95,9 @@ impl Editor {
                     Event::Key(key_event) => {
                         let buffer_mode = &self.buffer_manager.get_active_buffer()?.mode;
 
-                        if let Some(action) = self.keybinding_manager.handle_input(buffer_mode, key_event) {
+                        if let Some(action) =
+                            self.keybinding_manager.handle_input(buffer_mode, key_event)
+                        {
                             action.execute(self)?;
                         }
                     }

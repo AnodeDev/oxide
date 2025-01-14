@@ -217,7 +217,9 @@ impl Buffer {
     // the editor in case something happens.
     pub async fn write_buffer(&mut self) -> Result<()> {
         if !self.state.mutable {
-            return Err(Error::ImmutableBufferError { title: self.title.clone() });
+            return Err(Error::ImmutableBufferError {
+                title: self.title.clone(),
+            });
         }
 
         if let Some(path) = &self.path {
