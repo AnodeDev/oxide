@@ -3,6 +3,7 @@ use crate::keybinding::actions::{ModeParams, NewLineDirection};
 
 type Result<T> = std::result::Result<T, Error>;
 
+// Holds functions for manipulating the content of the buffer.
 pub trait Manipulation {
     fn add_char(&mut self, character: char) -> Result<()>;
     fn add_tab(&mut self) -> Result<()>;
@@ -11,7 +12,7 @@ pub trait Manipulation {
     fn delete_line(&mut self);
 }
 
-// TODO: Implement Manipulation for Command Line.
+// TODO: Make some of the functions cleaner and more readable.
 impl Manipulation for Buffer {
     // Adds a character to the buffer or the command line.
     fn add_char(&mut self, character: char) -> Result<()> {
@@ -41,8 +42,6 @@ impl Manipulation for Buffer {
         while (self.cursor.x + spaces) % 4 != 0 {
             spaces -= 1;
         }
-
-        log::info!("{}", spaces);
 
         for _ in 0..spaces {
             self.add_char(' ')?;
@@ -237,6 +236,7 @@ impl Manipulation for CommandLine {
         Ok(())
     }
 
+    // These functions will never be used in the command line
     fn add_tab(&mut self) -> Result<()> {
         unreachable!()
     }

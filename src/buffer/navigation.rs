@@ -1,5 +1,6 @@
 use crate::buffer::{Buffer, CommandLine, Minibuffer, Mode};
 
+// Holds functions for buffer navigation.
 pub trait Navigation {
     fn move_cursor(&mut self, x: i32, y: i32);
     fn move_cursor_to_top(&mut self);
@@ -9,7 +10,7 @@ pub trait Navigation {
 impl Navigation for Buffer {
     fn move_cursor(&mut self, x: i32, y: i32) {
         match self.mode {
-            Mode::Normal | Mode::Visual { .. } => {
+            Mode::Normal | Mode::Visual => {
                 // Sets the new y value.
                 // Clamp is used to make sure it doesn't exceed the length of the line or 0.
                 let new_y =

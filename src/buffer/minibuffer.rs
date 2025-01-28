@@ -24,6 +24,11 @@ pub enum MinibufferKind {
     Buffer(Vec<String>),
 }
 
+/*
+* The minibuffer is similar to the one in Emacs, with inspiration from the Ivy package. It will be
+* able to be used for a multitude of things at a later point, as well as be accessed by plugins,
+* but right now it can switch buffers and open files.
+*/
 #[derive(Default, Debug)]
 pub struct Minibuffer {
     pub cursor: Cursor,
@@ -35,6 +40,8 @@ pub struct Minibuffer {
 }
 
 impl Minibuffer {
+    // Fills the minibuffers popup menu with matching results, based on the kind.
+    // TODO: Make the code more modular and generic, split into more readable functions.
     pub fn fill(&mut self) -> Result<()> {
         let runtime = tokio::runtime::Runtime::new()?;
         let mut matches: Vec<String> = Vec::new();
@@ -114,6 +121,7 @@ impl Minibuffer {
         Ok(())
     }
 
+    // Adds the currently selected item in the popup menu to the input.
     pub fn append(&mut self) -> Result<()> {
         if let Some(item) = self.content.get(self.cursor.y) {
             if let MinibufferKind::File(path) = &self.kind {
@@ -135,6 +143,7 @@ impl Minibuffer {
         Ok(())
     }
 
+    // Sends an Action if the current input + kind can do a task.
     pub fn execute(&mut self) -> Result<Option<Box<dyn Action>>> {
         match &self.kind {
             MinibufferKind::File(path) => {

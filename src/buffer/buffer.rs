@@ -2,7 +2,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::buffer::{Error, Viewport};
 use crate::keybinding::actions::{InsertDirection, ModeParams};
@@ -17,6 +17,7 @@ type Result<T> = std::result::Result<T, Error>;
 // │ Buffer Enums                         │
 // ╰──────────────────────────────────────╯
 
+// Enables different interactions and rendering options without having to hard-code buffer styles.
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum BufferKind {
     Normal,
@@ -77,6 +78,7 @@ impl BufferState {
         }
     }
 
+    // A preset for buffers that are permanent and can't be modified in insert mode.
     pub fn locked() -> Self {
         BufferState {
             killable: false,
@@ -98,10 +100,10 @@ impl std::default::Default for BufferState {
 pub struct CommandLine {
     pub input: String,
     pub prefix: String,
-    pub cursor: Cursor,
+    pub cursor: Cursor, // Has it's own cursor to avoid overflow conflicts.
 }
 
-// The main buffer struct. Holds all the information related to the buffer
+// The main buffer struct. Holds all the information related to the buffer.
 #[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub struct Buffer {
     pub title: String,
@@ -184,13 +186,13 @@ impl Buffer {
         }
     }
 
+    // Loads a file into the buffer.
     pub async fn from_file(path: PathBuf, height: usize) -> Result<Self> {
         let mut content = String::new();
 
         let file = File::open(path.clone())?;
         let mut buf_reader = BufReader::new(file);
-        // If it can't find the name of the file, it won't display an empty string
-        let mut file_name = "[NO NAME]".to_string();
+        let mut file_name = "[NO NAME]".to_string(); // Placeholder if it can't get the file name.
 
         buf_reader.read_to_string(&mut content)?;
 
@@ -246,76 +248,69 @@ impl Buffer {
         }
 
         match mode {
-            ModeParams::Visual => {
-                self.visual_start = Some(self.cursor);
-                self.mode = Mode::Visual;
-            }
-            ModeParams::Command { prefix } => {
-                self.command_line.prefix = prefix;
-                self.command_line.input = String::new();
-                self.command_line.cursor.x =
-                    self.command_line.prefix.len() + self.command_line.input.len();
+            ModeParams::Visual => self.switch_mode_visual(),
+            ModeParams::Command { prefix } => self.switch_mode_command(prefix),
+            ModeParams::Insert { insert_direction } => self.switch_mode_insert(insert_direction),
+            ModeParams::Normal => self.switch_mode_normal(),
+            ModeParams::Minibuffer => self.switch_mode_minibuffer(),
+        }
+    }
 
-                self.mode = Mode::Command;
-            }
-            ModeParams::Insert { insert_direction } => {
-                if self.state.mutable {
-                    match insert_direction {
-                        InsertDirection::Beginning => {
-                            if let Some(index) = self.content[self.cursor.y]
-                                .char_indices()
-                                .find(|(_, c)| !c.is_whitespace())
-                                .map(|(index, _)| index)
-                            {
-                                self.cursor.x = index;
-                            }
-                        }
-                        InsertDirection::Before => {}
-                        InsertDirection::After => {
-                            if self.content[self.cursor.y].len() > self.cursor.x {
-                                self.cursor.x += 1;
-                            }
-                        }
-                        InsertDirection::End => self.cursor.x = self.content[self.cursor.y].len(),
+    fn switch_mode_visual(&mut self) {
+        self.visual_start = Some(self.cursor);
+        self.mode = Mode::Visual;
+    }
+
+    fn switch_mode_command(&mut self, prefix: String) {
+        self.command_line.prefix = prefix;
+        self.command_line.input = String::new();
+        self.command_line.cursor.x = self.command_line.prefix.len();
+
+        self.mode = Mode::Command;
+    }
+
+    fn switch_mode_normal(&mut self) {
+        self.mode = Mode::Normal;
+    }
+
+    fn switch_mode_insert(&mut self, direction: InsertDirection) {
+        match direction {
+            InsertDirection::Beginning => {
+                if let Some(line) = self.content.get(self.cursor.y) {
+                    let first_char = line
+                        .char_indices()
+                        .find(|(_, c)| !c.is_whitespace())
+                        .map(|(index, _)| index);
+
+                    if let Some(index) = first_char {
+                        self.cursor.x = index;
                     }
-
-                    self.mode = Mode::Insert;
                 }
             }
-            ModeParams::Normal => self.mode = Mode::Normal,
-            ModeParams::Minibuffer => self.mode = Mode::Minibuffer,
+            InsertDirection::After => {
+                if let Some(line) = self.content.get(self.cursor.y) {
+                    if line.len() > self.cursor.x {
+                        self.cursor.x += 1;
+                    }
+                }
+            }
+            InsertDirection::End => {
+                if let Some(line) = self.content.get(self.cursor.y) {
+                    self.cursor.x = line.len();
+                }
+            }
+            InsertDirection::Before => {}
         }
+
+        self.mode = Mode::Insert;
+    }
+
+    fn switch_mode_minibuffer(&mut self) {
+        self.mode = Mode::Minibuffer;
     }
 
     // Returns the current command from the command line.
     pub fn get_command(&mut self) -> &str {
         &self.command_line.input
-    }
-
-    pub async fn load_file(&mut self, path: &PathBuf) -> Result<()> {
-        // Checks if the path points to a file.
-        if path.is_file() {
-            let mut content = String::new();
-
-            let file = File::open(&path)?;
-            let mut buf_reader = BufReader::new(&file);
-            buf_reader.read_to_string(&mut content)?;
-
-            // If the program can't fetch the name of the file, it's displayed like this.
-            self.title = "[NO NAME]".to_string();
-
-            // Tries to fetch the file name.
-            if let Some(name_osstr) = Path::new(&path).file_name() {
-                self.title = name_osstr.to_string_lossy().into_owned();
-            }
-
-            self.content = content.split("\n").map(|line| line.to_string()).collect();
-
-            self.path = Some(path.clone());
-
-            Ok(())
-        } else {
-            Err(Error::FileNotFoundError { path: path.clone() })
-        }
     }
 }
