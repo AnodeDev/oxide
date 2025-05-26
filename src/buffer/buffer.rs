@@ -188,18 +188,27 @@ impl Buffer {
 
     // Loads a file into the buffer.
     pub async fn from_file(path: PathBuf, height: usize) -> Result<Self> {
-        let mut content = String::new();
-
-        let file = File::open(path.clone())?;
-        let mut buf_reader = BufReader::new(file);
         let mut file_name = "[NO NAME]".to_string(); // Placeholder if it can't get the file name.
+        let mut content: Vec<String> = Vec::new();
 
-        buf_reader.read_to_string(&mut content)?;
+        if path.exists() {
+            let file = File::open(path.clone())?;
+            let mut buf_reader = BufReader::new(file);
+            let mut file_content = String::new();
 
-        if let Some(name_osstr) = path.file_name() {
-            file_name = name_osstr.to_string_lossy().into_owned();
+            buf_reader.read_to_string(&mut file_content)?;
+
+            if let Some(name_osstr) = path.file_name() {
+                file_name = name_osstr.to_string_lossy().into_owned();
+            }
+            content = file_content.split("\n").map(|line| line.to_string()).collect();
+        } else {
+            if let Some(parent) = path.parent() {
+                if !parent.exists() {
+                    return Err(Error::InvalidPathError { path: parent.to_path_buf() });
+                }
+            }
         }
-        let content: Vec<String> = content.split("\n").map(|line| line.to_string()).collect();
 
         Ok(Buffer {
             title: file_name,

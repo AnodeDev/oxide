@@ -4,6 +4,7 @@ use ratatui::Terminal;
 use tokio::runtime::Runtime;
 
 use std::io::Stdout;
+use std::path::PathBuf;
 
 use crate::buffer::{Buffer, Minibuffer, Mode};
 use crate::keybinding::KeybindingManager;
@@ -26,11 +27,17 @@ pub struct BufferManager {
 }
 
 impl BufferManager {
-    fn new(height: usize) -> Self {
-        BufferManager {
-            buffers: vec![Buffer::scratch(height)],
+    fn new(height: usize, path: Option<PathBuf>, runtime: Runtime) -> Result<Self> {
+        let buffer = if let Some(file_path) = path {
+            runtime.block_on(Buffer::from_file(file_path, height))?
+        } else {
+            Buffer::scratch(height)
+        };
+
+        Ok(BufferManager {
+            buffers: vec![buffer],
             active_buffer: 0,
-        }
+        })
     }
 
     // Borrows the current buffer
@@ -66,10 +73,10 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(terminal: Terminal<CrosstermBackend<Stdout>>) -> Result<Self> {
+    pub fn new(terminal: Terminal<CrosstermBackend<Stdout>>, path: Option<PathBuf>, runtime: Runtime) -> Result<Self> {
         let renderer = Renderer::new(terminal);
         let height = renderer.get_terminal_size().height as usize;
-        let buffer_manager = BufferManager::new(height);
+        let buffer_manager = BufferManager::new(height, path, runtime)?;
         let minibuffer = Minibuffer::default();
         let runtime = Runtime::new()?;
         let keybinding_manager = KeybindingManager::new();
